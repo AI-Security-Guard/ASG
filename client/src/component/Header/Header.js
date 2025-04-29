@@ -1,9 +1,5 @@
 function Header() {
-    return (
-        <>
-            <h1>헤더입니다.</h1>
-        </>
-    );
+    return <>헤더입니다.</>;
 }
 
 export default Header;

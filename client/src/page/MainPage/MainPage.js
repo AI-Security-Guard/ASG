@@ -1,5 +1,6 @@
 import { MainContainer, Logo, LogoImg, LogoTxt } from './MainPage.style.js';
 import Header from '../../component/Header/Header.js';
+import Sidebar from '../../component/Sidebar/Sidebar.js';
 function MainPage() {
     return (
         <>

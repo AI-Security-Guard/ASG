@@ -1,6 +1,4 @@
 import { MainContainer, Logo, LogoImg, LogoTxt } from './MainPage.style.js';
-import ShortButton from '../../component/ShortButton/ShortButton.js';
-
 function MainPage() {
     return (
         <>
@@ -10,7 +8,6 @@ function MainPage() {
                     <LogoTxt>AI방범대</LogoTxt>
                 </Logo>
             </MainContainer>
-            <ShortButton />
         </>
     );
 }

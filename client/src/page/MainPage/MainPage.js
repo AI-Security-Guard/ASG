@@ -1,5 +1,4 @@
 import { MainContainer, Logo, LogoImg, LogoTxt } from './MainPage.style.js';
-
 function MainPage() {
     return (
         <>

@@ -2,21 +2,24 @@ import styled from 'styled-components';
 
 export const HeaderContainer = styled.div`
     background: linear-gradient(to right, #cdcecf 0%, #272727 100%);
-    height: 50%;
+    position: fixed;
     display: flex;
+    height: 10%;
+    width: 100%;
     justify-content: space-between;
-    padding: 0.5% 1%;
     border-bottom: 2px solid black;
+    z-index: 1;
 `;
 
 export const Logo = styled.div`
     display: flex;
     align-items: center;
+    margin-left: 1.2rem;
+    cursor: pointer;
 `;
 
 export const LogoImg = styled.img`
     width: 70px;
-    cursor: pointer;
 `;
 
 export const LogoTxt = styled.div`
@@ -28,8 +31,9 @@ export const UserAuthBox = styled.div`
     display: flex;
     gap: 10%;
     align-items: center;
-    width: 15em;
+    width: 20em;
     justify-content: flex-end;
+    margin-right: 1.2rem;
 `;
 
 export const LoginButton = styled.div`

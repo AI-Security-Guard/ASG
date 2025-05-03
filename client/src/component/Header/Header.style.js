@@ -9,6 +9,7 @@ export const HeaderContainer = styled.div`
     justify-content: space-between;
     border-bottom: 2px solid black;
     z-index: 1;
+    top: 0;
 `;
 
 export const Logo = styled.div`

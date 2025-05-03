@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Pagination } from '@mui/material';
 import {
     ListContainer,
     UnconfirmedCountMessage,
@@ -12,26 +11,26 @@ import {
     IncidentInfo,
     SuspectContainer,
     SuspectColumn,
+    ListPagination,
 } from './ListPage.style.js';
 import Header from '../../component/Header/Header.js';
+import Sidebar from '../../component/Sidebar/Sidebar.js';
 
 function ListPage() {
     const entries = [
-        { date: '2025/05/05', message: '폭행', checked: true },
+        { date: '2025/05/05', message: '데이트폭력', checked: true },
         { date: '2025/05/06', message: '도난', checked: false },
         { date: '2025/05/07', message: '폭행', checked: true },
         { date: '2025/05/08', message: '사고', checked: false },
-        { date: '2025/05/09', message: '절도', checked: false },
-        { date: '2025/05/10', message: '사기', checked: false },
+        { date: '2025/05/09', message: '기물파손', checked: false },
+        { date: '2025/05/10', message: '침입', checked: false },
         { date: '2025/05/11', message: '폭행', checked: true },
-        { date: '2025/05/12', message: '사고', checked: true },
-        { date: '2025/05/13', message: '폭행', checked: true },
-        { date: '2025/05/14', message: '도난', checked: false },
-        { date: '2025/05/15', message: '폭행', checked: false },
-        { date: '2025/05/16', message: '사기', checked: false },
-        { date: '2025/05/17', message: '절도', checked: true },
-        { date: '2025/05/18', message: '사고', checked: true },
-        { date: '2025/05/19', message: '폭행', checked: true },
+        { date: '2025/05/12', message: '투기', checked: true },
+        { date: '2025/05/08', message: '사고', checked: false },
+        { date: '2025/05/09', message: '기물파손', checked: false },
+        { date: '2025/05/10', message: '침입', checked: false },
+        { date: '2025/05/11', message: '폭행', checked: true },
+        { date: '2025/05/12', message: '투기', checked: true },
     ];
 
     const [currentPage, setCurrentPage] = useState(1);
@@ -49,9 +48,10 @@ function ListPage() {
     return (
         <>
             <Header />
+            <Sidebar />
             <ListContainer>
                 <UnconfirmedCountMessage>
-                    "관리자님 확인하지 않은 거동 수상자 목록이 {unconfirmedCount}개 있습니다."
+                    "확인하지 않은 거동 수상자 목록이 {unconfirmedCount}개 있습니다."
                 </UnconfirmedCountMessage>
                 <SuspectContainer>
                     <SuspectColumn>
@@ -87,12 +87,10 @@ function ListPage() {
                         ))}
                     </SuspectColumn>
                 </SuspectContainer>
-                <Pagination
-                    count={Math.ceil(sortedEntries.length / itemsPerPage)} // 정렬된 데이터를 기준으로 페이지 수 계산
+                <ListPagination
+                    count={Math.ceil(sortedEntries.length / itemsPerPage)}
                     page={currentPage}
                     onChange={handlePageChange}
-                    variant='outlined'
-                    shape='rounded'
                 />
             </ListContainer>
         </>

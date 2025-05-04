@@ -20,7 +20,8 @@ export const Detail = styled.div`
     align-items: center;
     padding: 3%;
     height: 100%;
-    justify-content: space-around;
+    gap: 3%;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1), 0px 8px 16px rgba(0, 0, 0, 0.1);
 `;
 
 export const TempVideo = styled.video`
@@ -29,7 +30,7 @@ export const TempVideo = styled.video`
     border: 1px solid black;
     border-radius: 10px;
     background-color: black;
-    height: 65%;
+    height: 70%;
 `;
 
 export const DetailContent = styled.div`

@@ -5,7 +5,6 @@ export const DetailContainer = styled.div`
     flex-direction: column;
     width: 100%;
     align-items: center;
-    justify-content: space-around;
     height: 80%;
     position: absolute;
     bottom: 0;
@@ -40,7 +39,7 @@ export const DetailContent = styled.div`
     width: 90%;
     height: 15%;
     font-weight: bold;
-    font-size: 25px;
+    font-size: 1.2rem;
     padding: 2%;
     display: flex;
     flex-direction: column;
@@ -55,6 +54,6 @@ export const Location = styled.div``;
 
 export const ButtonContainer = styled.div`
     display: flex;
-    justify-content: flex-end; /* 버튼을 오른쪽으로 정렬 */
+    justify-content: flex-end;
     width: 75%;
 `;

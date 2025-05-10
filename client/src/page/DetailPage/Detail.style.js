@@ -1,4 +1,4 @@
-import styled from 'styled-components';
+import styled from "styled-components";
 
 export const DetailContainer = styled.div`
     display: flex;
@@ -38,13 +38,15 @@ export const DetailContent = styled.div`
     border: 1px solid black;
     border-radius: 10px;
     width: 90%;
-    height: 15%;
     font-weight: bold;
     font-size: 1.2rem;
     padding: 2%;
     display: flex;
     flex-direction: column;
     justify-content: space-around;
+    word-break: keep-all;
+    min-height: 100px;
+    height: auto;
 `;
 
 export const Date = styled.div``;

@@ -2,6 +2,7 @@ import './App.css';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import MainPage from './page/MainPage/MainPage.js';
 import ListPage from './page/ListPage/ListPage.js';
+import DetailPage from './page/DetailPage/DetailPage.js';
 
 function App() {
     return (
@@ -10,6 +11,7 @@ function App() {
                 <Routes>
                     <Route path='/' element={<MainPage />} />
                     <Route path='/List' element={<ListPage />} />
+                    <Route path='/Detail' element={<DetailPage />} />
                 </Routes>
             </Router>
         </>

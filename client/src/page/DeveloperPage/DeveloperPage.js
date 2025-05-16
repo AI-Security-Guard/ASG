@@ -1,7 +1,13 @@
 import { DeveloperContainer } from "./DeveloperPage.style.js";
+import Header from "../../component/Header/Header.js";
 
 function DeveloperPage() {
-    return <DeveloperContainer>개발자 소개 페이지 입니다.</DeveloperContainer>;
+    return (
+        <>
+            <Header />
+            <DeveloperContainer></DeveloperContainer>;
+        </>
+    );
 }
 
 export default DeveloperPage;

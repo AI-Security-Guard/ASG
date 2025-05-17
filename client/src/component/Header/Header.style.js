@@ -13,7 +13,7 @@ export const HeaderContainer = styled.div`
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 `;
 

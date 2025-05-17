@@ -1,7 +1,7 @@
 import { BackgroundWrapper } from "./Background.style.js";
 
-function Layout({ children }) {
+function Background({ children }) {
     return <BackgroundWrapper>{children}</BackgroundWrapper>;
 }
 
-export default Layout;
+export default Background;

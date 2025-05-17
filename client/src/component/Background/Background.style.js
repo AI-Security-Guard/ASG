@@ -6,15 +6,9 @@ const gradientShift = keyframes`
   100% { background-position: 0% 50%; }
 `;
 
-const BackgroundWrapper = styled.div`
-    width: 100%;
-    min-height: 100vh;
-
+export const BackgroundWrapper = styled.div`
     background: linear-gradient(135deg, #e5e7eb, #cbd5e1, #94a3b8, #cbd5e1);
     background-size: 300% 300%;
     background-position: 0% 50%;
-    animation: ${gradientShift} 20s ease-in-out infinite;
-
-    display: flex;
-    flex-direction: column;
+    animation: ${gradientShift} 15s ease-in-out infinite;
 `;

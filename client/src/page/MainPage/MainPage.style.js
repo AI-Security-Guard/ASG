@@ -42,9 +42,9 @@ export const MainContainer = styled.div`
     position: relative;
     overflow: hidden;
 
-    background: linear-gradient(135deg, #e5e7eb, #cbd5e1, #94a3b8, #cbd5e1);
-    background-size: 300% 300%;
-    animation: ${gradientShift} 20s ease-in-out infinite;
+    // background: linear-gradient(135deg, #e5e7eb, #cbd5e1, #94a3b8, #cbd5e1);
+    // background-size: 300% 300%;
+    // animation: ${gradientShift} 20s ease-in-out infinite;
 `;
 
 export const Logo = styled.div`

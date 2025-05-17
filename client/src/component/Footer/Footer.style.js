@@ -41,6 +41,10 @@ export const FooterInfo = styled.div`
 
 export const ServiceStart = styled.div``;
 
-export const OpenSource = styled.div``;
+export const OpenSource = styled.div`
+    cursor: pointer;
+`;
 
-export const Developer = styled.div``;
+export const Developer = styled.div`
+    cursor: pointer;
+`;

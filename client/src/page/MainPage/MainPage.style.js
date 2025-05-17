@@ -45,13 +45,6 @@ export const MainContainer = styled.div`
     background: linear-gradient(135deg, #e5e7eb, #cbd5e1, #94a3b8, #cbd5e1);
     background-size: 300% 300%;
     animation: ${gradientShift} 20s ease-in-out infinite;
-
-    color: #1e293b;
-
-    & > * {
-        position: relative;
-        z-index: 1;
-    }
 `;
 
 export const Logo = styled.div`

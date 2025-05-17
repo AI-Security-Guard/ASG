@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
     HeaderContainer,
     Logo,
@@ -9,17 +9,17 @@ import {
     RegisterButton,
     WelcomeMessage,
     Logout,
-} from './Header.style.js';
+} from "./Header.style.js";
 
 function Header() {
     const [isLogin, setIsLogin] = useState(false);
-    const [id, setId] = useState('sojeong0302');
+    const [id, setId] = useState("sojeong0302");
 
     return (
         <>
             <HeaderContainer>
                 <Logo>
-                    <LogoImg src='/image/logo.png' alt='로고 이미지' />
+                    <LogoImg src="/image/logo.png" alt="로고 이미지" />
                     <LogoTxt>AI방범대</LogoTxt>
                 </Logo>
                 <UserAuthBox>

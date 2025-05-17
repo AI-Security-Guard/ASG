@@ -1,15 +1,20 @@
-import styled from 'styled-components';
+import styled from "styled-components";
 
 export const HeaderContainer = styled.div`
-    background: linear-gradient(to right, #cdcecf 0%, #272727 100%);
     position: fixed;
-    display: flex;
-    height: 10%;
-    width: 100%;
-    justify-content: space-between;
-    border-bottom: 2px solid black;
-    z-index: 1;
     top: 0;
+    width: 100%;
+    height: 10%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 10;
+
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 `;
 
 export const Logo = styled.div`
@@ -38,20 +43,15 @@ export const UserAuthBox = styled.div`
 `;
 
 export const LoginButton = styled.div`
-    color: white;
     cursor: pointer;
 `;
 
 export const RegisterButton = styled.div`
-    color: white;
     cursor: pointer;
 `;
 
-export const WelcomeMessage = styled.div`
-    color: white;
-`;
+export const WelcomeMessage = styled.div``;
 
 export const Logout = styled.div`
-    color: white;
     cursor: pointer;
 `;

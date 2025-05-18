@@ -4,7 +4,7 @@ import Background from "./component/Background/Background.js";
 import MainPage from "./page/MainPage/MainPage.js";
 import ListPage from "./page/ListPage/ListPage.js";
 import DetailPage from "./page/DetailPage/DetailPage.js";
-import DeveloperPage from "./page/DeveloperPage/DeveloperPage.js";
+import TermsPage from "./page/TermsPage/TermsPage.js";
 
 function App() {
     return (
@@ -15,7 +15,7 @@ function App() {
                         <Route path="/" element={<MainPage />} />
                         <Route path="/List" element={<ListPage />} />
                         <Route path="/Detail" element={<DetailPage />} />
-                        <Route path="/Developer" element={<DeveloperPage />} />
+                        <Route path="/termspage" element={<TermsPage />} />
                     </Routes>
                 </Background>
             </Router>

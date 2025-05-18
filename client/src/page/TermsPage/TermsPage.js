@@ -20,10 +20,10 @@ function TermsPage() {
     if (type === 'terms') setTermsAgree(value);
     if (type === 'privacy') setPrivacyAgree(value);
 
-    if (value && (type === 'terms' ? privacyAgree : termsAgree)) {
-      setAllAgree(true);
-    } else {
-      setAllAgree(false);
+    if (value && ((type === 'terms' && privacyAgree) || (type === 'privacy' && termsAgree))) {
+    setAllAgree(true);
+    } else if (!value) {
+    setAllAgree(false);
     }
   };
 
@@ -559,8 +559,8 @@ vi.기타 정상적인 서비스 운영에 방해가 될 경우
                 </span>
                 <input
                   type="checkbox"
-                  checked={termsAgree}
-                  onChange={(e) => handleIndividualAgree('terms', e.target.checked)}
+                  checked={privacyAgree}
+                  onChange={(e) => handleIndividualAgree('privacy', e.target.checked)}
                 />
             </S.TitleWithCheckbox>
 

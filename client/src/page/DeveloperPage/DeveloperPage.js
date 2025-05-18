@@ -32,9 +32,8 @@ function DeveloperPage() {
     return (
         <>
             <Header />
-            <Sidebar />
             <DeveloperContainer>
-                {/* <Swiper modules={[Pagination]} pagination={{ clickable: true }} spaceBetween={30} slidesPerView={1}>
+                <Swiper modules={[Pagination]} pagination={{ clickable: true }} spaceBetween={30} slidesPerView={1}>
                     {slideItems.map((item, index) => (
                         <SwiperSlide key={index}>
                             <SlideBox>
@@ -57,7 +56,7 @@ function DeveloperPage() {
                             </SlideBox>
                         </SwiperSlide>
                     ))}
-                </Swiper> */}
+                </Swiper>
             </DeveloperContainer>
         </>
     );

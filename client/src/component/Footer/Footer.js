@@ -17,6 +17,10 @@ function Footer() {
         navigate("/developer");
     };
 
+    const handleOpenSourceClick = () => {
+        navigate("/openSource");
+    };
+
     return (
         <FooterContainer>
             <GitHubDiv>
@@ -32,7 +36,7 @@ function Footer() {
             </GitHubDiv>
             <ServiceStart>ⓒ 2025 AI-Security-Guard All rights reserved</ServiceStart>
             <FooterInfo>
-                <OpenSource>오픈소스 라이선스</OpenSource>|
+                <OpenSource onClick={handleOpenSourceClick}>오픈소스 라이선스</OpenSource>|
                 <Developer onClick={handleDeveloperClick}>개발자 소개</Developer>
             </FooterInfo>
         </FooterContainer>

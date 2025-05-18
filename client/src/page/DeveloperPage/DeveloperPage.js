@@ -5,7 +5,6 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 import "swiper/css/pagination";
 import { Pagination } from "swiper/modules";
-import Sidebar from "../../component/Sidebar/Sidebar.js";
 
 function DeveloperPage() {
     const slideItems = [

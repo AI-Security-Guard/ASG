@@ -16,10 +16,13 @@ import {
 } from "./ListPage.style.js";
 import Header from "../../component/Header/Header.js";
 import Sidebar from "../../component/Sidebar/Sidebar.js";
+import { useNavigate } from "react-router-dom";
 
 function ListPage() {
+    const navigate = useNavigate();
+
     const entries = [
-        { date: '2025/05/07', message: '폭행', checked: true },
+        { date: "2025/05/07", message: "폭행", checked: true },
         { date: "2025/05/05", message: "데이트폭력", checked: true },
         { date: "2025/05/06", message: "도난", checked: false },
         { date: "2025/05/07", message: "폭행", checked: true },
@@ -47,6 +50,7 @@ function ListPage() {
     const indexOfFirstEntry = indexOfLastEntry - itemsPerPage;
     const currentEntries = sortedEntries.slice(indexOfFirstEntry, indexOfLastEntry);
     const unconfirmedCount = entries.filter((entry) => !entry.checked).length;
+
     return (
         <>
             <ListContainer>
@@ -59,7 +63,7 @@ function ListPage() {
                     <SuspectContainer>
                         <SuspectColumn>
                             {currentEntries.slice(0, 4).map((entry, index) => (
-                                <SuspectEntry key={index}>
+                                <SuspectEntry key={index} onClick={() => navigate("/Detail")}>
                                     <SuspectPoto src="/image/poto.png" alt="임시 이미지" />
                                     <SuspectDetail>
                                         <IncidentInfo>
@@ -76,7 +80,7 @@ function ListPage() {
                         </SuspectColumn>
                         <SuspectColumn>
                             {currentEntries.slice(4, 8).map((entry, index) => (
-                                <SuspectEntry key={index}>
+                                <SuspectEntry key={index} onClick={() => navigate("/Detail")}>
                                     <SuspectPoto src="/image/poto.png" alt="임시 이미지" />
                                     <SuspectDetail>
                                         <IncidentInfo>

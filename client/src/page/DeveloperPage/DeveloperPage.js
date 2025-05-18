@@ -5,7 +5,6 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 import "swiper/css/pagination";
 import { Pagination } from "swiper/modules";
-import Sidebar from "../../component/Sidebar/Sidebar.js";
 
 function DeveloperPage() {
     const slideItems = [
@@ -32,9 +31,8 @@ function DeveloperPage() {
     return (
         <>
             <Header />
-            <Sidebar />
             <DeveloperContainer>
-                {/* <Swiper modules={[Pagination]} pagination={{ clickable: true }} spaceBetween={30} slidesPerView={1}>
+                <Swiper modules={[Pagination]} pagination={{ clickable: true }} spaceBetween={30} slidesPerView={1}>
                     {slideItems.map((item, index) => (
                         <SwiperSlide key={index}>
                             <SlideBox>
@@ -57,7 +55,7 @@ function DeveloperPage() {
                             </SlideBox>
                         </SwiperSlide>
                     ))}
-                </Swiper> */}
+                </Swiper>
             </DeveloperContainer>
         </>
     );

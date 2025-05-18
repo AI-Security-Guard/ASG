@@ -7,8 +7,9 @@ import DetailPage from "./page/DetailPage/DetailPage.js";
 import TermsPage from "./page/TermsPage/TermsPage.js";
 import RegisterPage from "./page/RegisterPage/RegisterPage.js";
 import DeveloperPage from "./page/DeveloperPage/DeveloperPage.js";
-import LoginPage from './page/LoginPage/LoginPage.js';
-import RenderPage from './page/RenderPage/RenderPage';
+import LoginPage from "./page/LoginPage/LoginPage.js";
+import RenderPage from "./page/RenderPage/RenderPage";
+import OpenSourcePage from "./page/OpenSourcePage/OpenSourcePage.js";
 
 function App() {
     return (
@@ -16,13 +17,15 @@ function App() {
             <Router>
                 <Background>
                     <Routes>
-                       <Route path='/login' element={<LoginPage />} />
+                        <Route path="/login" element={<LoginPage />} />
                         <Route path="/" element={<MainPage />} />
                         <Route path="/List" element={<ListPage />} />
                         <Route path="/Detail" element={<DetailPage />} />
                         <Route path="/termspage" element={<TermsPage />} />
                         <Route path="/register" element={<RegisterPage />} />
                         <Route path="/render" element={<RenderPage />} />
+                        <Route path="/Developer" element={<DeveloperPage />} />
+                        <Route path="/openSource" element={<OpenSourcePage />} />
                     </Routes>
                 </Background>
             </Router>

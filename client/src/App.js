@@ -1,4 +1,3 @@
-
 import "./App.css";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import Background from "./component/Background/Background.js";
@@ -8,6 +7,7 @@ import DetailPage from "./page/DetailPage/DetailPage.js";
 import RegisterPage from "./page/RegisterPage/RegisterPage.js";
 import DeveloperPage from "./page/DeveloperPage/DeveloperPage.js";
 import LoginPage from './page/LoginPage/LoginPage.js';
+import RenderPage from './page/RenderPage/RenderPage';
 
 function App() {
     return (
@@ -20,6 +20,7 @@ function App() {
                         <Route path="/List" element={<ListPage />} />
                         <Route path="/Detail" element={<DetailPage />} />
                         <Route path="/register" element={<RegisterPage />} />
+                           <Route path="/render" element={<RenderPage />} />
                     </Routes>
                 </Background>
             </Router>

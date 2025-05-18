@@ -4,11 +4,19 @@ export const DetailContainer = styled.div`
     display: flex;
     flex-direction: column;
     width: 100%;
+    min-height: 100vh;
+    justify-content: center;
+`;
+
+export const Container = styled.div`
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
     align-items: center;
-    height: 80%;
-    position: absolute;
-    bottom: 0;
-    gap: 5%;
+    margin-top: 10%;
+    margin-bottom: 10%;
+    gap: 10%;
 `;
 
 export const Detail = styled.div`
@@ -47,6 +55,7 @@ export const DetailContent = styled.div`
     word-break: keep-all;
     min-height: 100px;
     height: auto;
+    margin-top: 3%;
 `;
 
 export const Date = styled.div``;
@@ -59,4 +68,5 @@ export const ButtonContainer = styled.div`
     display: flex;
     justify-content: flex-end;
     width: 75%;
+    margin-top: 3%;
 `;

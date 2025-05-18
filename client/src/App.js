@@ -4,6 +4,7 @@ import Background from "./component/Background/Background.js";
 import MainPage from "./page/MainPage/MainPage.js";
 import ListPage from "./page/ListPage/ListPage.js";
 import DetailPage from "./page/DetailPage/DetailPage.js";
+import TermsPage from "./page/TermsPage/TermsPage.js";
 import RegisterPage from "./page/RegisterPage/RegisterPage.js";
 import DeveloperPage from "./page/DeveloperPage/DeveloperPage.js";
 import LoginPage from './page/LoginPage/LoginPage.js';
@@ -19,8 +20,9 @@ function App() {
                         <Route path="/" element={<MainPage />} />
                         <Route path="/List" element={<ListPage />} />
                         <Route path="/Detail" element={<DetailPage />} />
+                        <Route path="/termspage" element={<TermsPage />} />
                         <Route path="/register" element={<RegisterPage />} />
-                           <Route path="/render" element={<RenderPage />} />
+                        <Route path="/render" element={<RenderPage />} />
                     </Routes>
                 </Background>
             </Router>

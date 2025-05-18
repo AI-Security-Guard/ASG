@@ -4,51 +4,57 @@ export const DetailContainer = styled.div`
     display: flex;
     flex-direction: column;
     width: 100%;
+    min-height: 100vh;
+`;
+
+export const Container = styled.div`
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
     align-items: center;
-    height: 80%;
-    position: absolute;
-    bottom: 0;
-    gap: 5%;
+    margin-top: 10%;
+    margin-bottom: 5%;
 `;
 
 export const Detail = styled.div`
-    background-color: #b3b3b3;
-    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
     width: 70%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 3%;
-    height: 100%;
-    gap: 3%;
-    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1), 0px 8px 16px rgba(0, 0, 0, 0.1);
+    padding: 2.5rem;
+    gap: 2rem;
+    box-shadow: 0px 8px 24px rgba(0, 0, 0, 0.15);
 `;
 
 export const TempVideo = styled.video`
     width: 90%;
-    padding: 2%;
-    border: 1px solid black;
+    padding: 1rem;
     border-radius: 10px;
-    background-color: black;
-    height: 70%;
+    background-color: #000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 `;
 
 export const DetailContent = styled.div`
-    background-color: #d9d9d9;
-    border: 1px solid black;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 10px;
     width: 90%;
-    font-weight: bold;
-    font-size: 1.2rem;
-    padding: 2%;
+    font-weight: 500;
+    font-size: 1.1rem;
+    padding: 1rem;
     display: flex;
     flex-direction: column;
-    justify-content: space-around;
-    word-break: keep-all;
-    min-height: 100px;
-    height: auto;
+    gap: 1rem;
+    color: #1e293b;
 `;
-
 export const Date = styled.div``;
 
 export const Type = styled.div``;
@@ -59,4 +65,5 @@ export const ButtonContainer = styled.div`
     display: flex;
     justify-content: flex-end;
     width: 75%;
+    margin-top: 3%;
 `;

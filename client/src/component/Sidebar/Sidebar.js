@@ -1,19 +1,22 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { SidebarContainer, SidebarButton, SidebarFooter } from "./Sidebar.style.js";
 import CameraAltIcon from "@mui/icons-material/CameraAlt";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 
 function Sidebar() {
+    const navigate = useNavigate();
+
     return (
         <SidebarContainer>
             <div>
-                <SidebarButton>
+                <SidebarButton onClick={() => navigate("/render")}>
                     <div className="content">
                         <CameraAltIcon fontSize="small" />
                         <span>CCTV 영상</span>
                     </div>
                 </SidebarButton>
-                <SidebarButton>
+                <SidebarButton onClick={() => navigate("/List")}>
                     <div className="content">
                         <AssignmentIcon fontSize="small" />
                         <span>기록</span>

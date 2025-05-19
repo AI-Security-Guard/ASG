@@ -10,15 +10,17 @@ import {
     WelcomeMessage,
     Logout,
 } from "./Header.style.js";
+import { useNavigate } from "react-router-dom";
 
 function Header() {
+    const navigate = useNavigate();
     const [isLogin, setIsLogin] = useState(false);
     const [id, setId] = useState("sojeong0302");
 
     return (
         <>
             <HeaderContainer>
-                <Logo>
+                <Logo onClick={() => navigate("/")}>
                     <LogoImg src="/image/logo.png" alt="로고 이미지" />
                     <LogoTxt>AI방범대</LogoTxt>
                 </Logo>
@@ -30,8 +32,8 @@ function Header() {
                         </>
                     ) : (
                         <>
-                            <LoginButton>로그인</LoginButton>
-                            <RegisterButton>회원가입</RegisterButton>
+                            <LoginButton onClick={() => navigate("/login")}>로그인</LoginButton>
+                            <RegisterButton onClick={() => navigate("/register")}>회원가입</RegisterButton>
                         </>
                     )}
                 </UserAuthBox>

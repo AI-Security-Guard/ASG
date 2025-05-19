@@ -29,7 +29,7 @@ function LoginPage() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                     />
-                    <LongButton txt="로그인" />
+                    <LongButton txt="로그인" onClick={handleLogin} />
                 </S.LoginBox>
             </S.Container>
         </>

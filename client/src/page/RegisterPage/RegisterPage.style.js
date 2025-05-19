@@ -1,57 +1,30 @@
-import styled from 'styled-components';
+import styled from "styled-components";
 
 export const Container = styled.div`
-  position: relative;
-  width: 100%;
-  height: 100vh;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 `;
 
 export const RegisterBox = styled.div`
-  position: absolute;
-  top: 150px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #aaa;
-  padding: 40px;
-  border-radius: 10px;
-  width: 400px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    height: 45%;
+    width: 100%;
+    max-width: 400px;
+    min-width: 300px;
+    background: rgba(255, 255, 255, 0.75);
+    padding: 3%;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
 `;
 
 export const Title = styled.h2`
-  text-align: center;
-  font-family: 'Gowun Dodum', sans-serif;
-`;
-
-export const Label = styled.label`
-  display: block;
-  margin-top: 15px;
-  font-weight: bold;
-`;
-
-export const Input = styled.input`
-  width: 95%;
-  padding: 10px;
-  margin-top: 5px;
-  border-radius: 5px;
-  border: none;
-  background-color: #ddd;
-`;
-
-export const Error = styled.p`
-  color: red;
-  font-size: 13px;
-  margin: 5px 0 0 0;
-`;
-
-export const Button = styled.button`
-  margin-top: 30px;
-  width: 100%;
-  padding: 15px;
-  border: none;
-  border-radius: 30px;
-  background-color: black;
-  color: white;
-  font-weight: bold;
-  font-size: 16px;
-  cursor: pointer;
+    font-size: 24px;
+    text-align: center;
 `;

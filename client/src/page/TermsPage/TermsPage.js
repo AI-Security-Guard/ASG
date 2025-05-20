@@ -1,73 +1,70 @@
-import React, { useState } from 'react';
-import Header from '../../component/Header/Header';
-import * as S from './TermsPage.style';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from "react";
+import Header from "../../component/Header/Header";
+import * as S from "./TermsPage.style";
+import { useNavigate } from "react-router-dom";
+import ShortButton from "../../component/ShortButton/ShortButton.js";
 
 function TermsPage() {
-  const [allAgree, setAllAgree] = useState(false);
-  const [termsAgree, setTermsAgree] = useState(false);
-  const [privacyAgree, setPrivacyAgree] = useState(false);
-  const navigate = useNavigate();
+    const [allAgree, setAllAgree] = useState(false);
+    const [termsAgree, setTermsAgree] = useState(false);
+    const [privacyAgree, setPrivacyAgree] = useState(false);
+    const navigate = useNavigate();
 
-  const handleAllAgree = () => {
-    const next = !allAgree;
-    setAllAgree(next);
-    setTermsAgree(next);
-    setPrivacyAgree(next);
-  };
+    const handleAllAgree = () => {
+        const next = !allAgree;
+        setAllAgree(next);
+        setTermsAgree(next);
+        setPrivacyAgree(next);
+    };
 
-  const handleIndividualAgree = (type, value) => {
-    if (type === 'terms') setTermsAgree(value);
-    if (type === 'privacy') setPrivacyAgree(value);
+    const handleIndividualAgree = (type, value) => {
+        if (type === "terms") setTermsAgree(value);
+        if (type === "privacy") setPrivacyAgree(value);
+        if (value && ((type === "terms" && privacyAgree) || (type === "privacy" && termsAgree))) {
+            setAllAgree(true);
+        } else {
+            setAllAgree(false);
+        }
+    };
 
-    if (value && ((type === 'terms' && privacyAgree) || (type === 'privacy' && termsAgree))) {
-    setAllAgree(true);
-    } else if (!value) {
-    setAllAgree(false);
-    }
-  };
+    const handleSubmit = () => {
+        navigate("/render");
+    };
 
-  const handleSubmit = () => {
-    if (termsAgree && privacyAgree) {
-      alert('약관에 동의하셨습니다.');
-      navigate('/register');
-    } else {
-      alert('모든 필수 약관에 동의해주세요.');
-    }
-  };
-
-  return (
-    <>
-      <Header />
-      <S.Container>
-        <S.Box>
-          <S.Title>약관 동의</S.Title>
-
-        <S.CheckLine>
-            <span style={{ marginLeft: '10px', fontWeight: 'bold' }}>
-                회원가입 약관에 모두 동의합니다
-            </span>
-            <input
-                type="checkbox"
-                checked={allAgree}
-                onChange={handleAllAgree}
-            />
-            
-        </S.CheckLine>
-
-          <S.Section>
-            <S.TitleWithCheckbox>
-                <span>
-                  이용약관 동의 <S.Required>(필수)</S.Required>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={termsAgree}
-                  onChange={(e) => handleIndividualAgree('terms', e.target.checked)}
-                />
-            </S.TitleWithCheckbox>
-
-            <S.TextArea readOnly value={`<서비스 이용약관>
+    return (
+        <>
+            <S.Container>
+                <Header />
+                <S.Box>
+                    <S.Title>약관 동의</S.Title>
+                    <S.Section>
+                        <S.StyledFormControlLabel
+                            control={
+                                <S.CheckLine
+                                    checked={allAgree}
+                                    onChange={handleAllAgree} // 전체 동의 체크 시 → 전체 true/false 처리
+                                />
+                            }
+                            label="회원가입 약관에 모두 동의합니다"
+                            labelPlacement="start"
+                        />
+                    </S.Section>
+                    <S.Section>
+                        <S.StyledFormControlLabel
+                            control={
+                                <S.CheckLine
+                                    checked={termsAgree}
+                                    onChange={(e) => handleIndividualAgree("terms", e.target.checked)}
+                                />
+                            }
+                            label="이용약관 동의 (필수)"
+                            labelPlacement="start"
+                        />
+                        <S.TextArea
+                            readOnly
+                            disabled
+                            variant="outlined"
+                            value={`<서비스 이용약관>
 
 제 1 장 총칙
 
@@ -549,22 +546,24 @@ vi.기타 정상적인 서비스 운영에 방해가 될 경우
 
 
 
-회사와 회원 간에 서비스 이용으로 발생한 분쟁에 대하여는 대한민국법을 적용하며, 본 분쟁으로 인하여 소송이 제기될 경우 민사소송법 상의 관할을 가지는 대한민국의 법원에 제기합니다.`} />
-        </S.Section>
-
-        <S.Section>
-            <S.TitleWithCheckbox>
-                <span>
-                  개인정보 수집 및 이용 동의 <S.Required>(필수)</S.Required>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={privacyAgree}
-                  onChange={(e) => handleIndividualAgree('privacy', e.target.checked)}
-                />
-            </S.TitleWithCheckbox>
-
-            <S.TextArea readOnly value={`1. 개인정보의 수집항목 및 수집방법 
+회사와 회원 간에 서비스 이용으로 발생한 분쟁에 대하여는 대한민국법을 적용하며, 본 분쟁으로 인하여 소송이 제기될 경우 민사소송법 상의 관할을 가지는 대한민국의 법원에 제기합니다.`}
+                        />
+                    </S.Section>
+                    <S.Section>
+                        <S.StyledFormControlLabel
+                            control={
+                                <S.CheckLine
+                                    checked={privacyAgree}
+                                    onChange={(e) => handleIndividualAgree("privacy", e.target.checked)}
+                                />
+                            }
+                            label="개인정보 수집 및 이용 동의 (필수)"
+                            labelPlacement="start"
+                        />
+                        <S.TextArea
+                            readOnly
+                            disabled
+                            value={`1. 개인정보의 수집항목 및 수집방법 
 AI방범대에서는 기본적인 회원 서비스 제공을 위한 필수정보로 실명인증정보와 가입정보로 구분하여 다음의 정보를 수집하고 있습니다. 필수정보를 입력해주셔야 회원 서비스 이용이 가능합니다.
 
   가. 수집하는 개인정보의 항목 
@@ -573,11 +572,11 @@ AI방범대에서는 기본적인 회원 서비스 제공을 위한 필수정보
       - 가입정보 : 아이디, 비밀번호, 성명, 이메일, 휴대전화번호, 기관명(운영회원)
     * 선택항목
       - 주소, 전화번호, 기관의 부서명(운영회원)
-	
+   
    [컴퓨터에 의해 자동으로 수집되는 정보]
    인터넷 서비스 이용과정에서 아래 개인정보 항목이 자동으로 생성되어 수집될 수 있습니다. 
     - IP주소, 서비스 이용기록, 방문기록 등
-	
+   
   나. 개인정보 수집방법
       홈페이지 회원가입을 통한 수집 
 
@@ -598,7 +597,7 @@ AI방범대에서는 기본적인 회원 서비스 제공을 위한 필수정보
 
 3. 수집한 개인정보 제3자 제공
 통계청 나라통계사이트에서는 정보주체의 동의, 법률의 특별한 규정 등 개인정보 보호법 제17조 및 제18조에 해당하는 경우에만 개인정보를 제3자에게 제공합니다.
-		
+      
 4. 개인정보 처리업무 안내
 통계청 나라통계사이트에서는 개인정보의 취급위탁은 하지 않고 있으며, 원활한 서비스 제공을 위해 아래의 기관을 통한 실명인증 및 공공 I-PIN, GPKI 인증을 하고 있습니다. 
 
@@ -606,26 +605,16 @@ AI방범대에서는 기본적인 회원 서비스 제공을 위한 필수정보
     - 행정자치부
       · 위탁업무 내용 : 공공 I-PIN, GPKI 인증
       · 개인정보 보유 및 이용 기간 : 행정자치부에서는 이미 보유하고 있는 개인정보이기 때문에 별도로 저장하지 않음
-								`} />
-        </S.Section>
-
-          <S.ButtonGroup>
-            <S.BackButton onClick={() => navigate(-1)}>뒤로가기</S.BackButton>
-            <S.SubmitButton
-              onClick={handleSubmit}
-              disabled={!(termsAgree && privacyAgree)}
-              style={{
-                opacity: termsAgree && privacyAgree ? 1 : 0.4,
-                cursor: termsAgree && privacyAgree ? 'pointer' : 'not-allowed',
-              }}
-            >
-              가입하기
-            </S.SubmitButton>
-          </S.ButtonGroup>
-        </S.Box>
-      </S.Container>
-    </>
-  );
+                        `}
+                        />
+                    </S.Section>
+                    <S.ButtonGroup>
+                        <ShortButton txt="가입하기" onClick={handleSubmit} />
+                    </S.ButtonGroup>
+                </S.Box>
+            </S.Container>
+        </>
+    );
 }
 
 export default TermsPage;

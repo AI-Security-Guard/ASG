@@ -3,14 +3,16 @@ import Header from "../../component/Header/Header";
 import * as S from "./RegisterPage.style";
 import Input from "../../component/Input/Input.js";
 import LongButton from "../../component/LongButton/LongButton.js";
+import { useNavigate } from "react-router-dom";
 
 function RegisterPage() {
     const [id, setId] = useState("");
     const [password, setPassword] = useState("");
     const [passwordCheck, setPasswordCheck] = useState("");
-
+    const navigate = useNavigate();
     const handleRegister = () => {
         console.log("회원가입 시도:", { id, password, password });
+        navigate("/termspage");
     };
 
     return (

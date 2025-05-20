@@ -1,126 +1,83 @@
-import styled from 'styled-components';
+import styled from "styled-components";
+import { Checkbox, FormControlLabel, TextField } from "@mui/material";
+
+export const StyledFormControlLabel = styled(FormControlLabel)`
+    margin-left: 10px;
+
+    .MuiTypography-root {
+        font-weight: bold;
+        font-size: 1rem;
+        color: #1e293b; /* 원하는 텍스트 색상 */
+    }
+
+    .MuiCheckbox-root {
+        color: #1e293b;
+
+        &:hover {
+            background-color: rgba(30, 41, 59, 0.04);
+        }
+    }
+`;
 
 export const Container = styled.div`
-  display: flex;
-  justify-content: center;
-  padding-top: 100px;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    height: 100vh;
+    align-items: center;
 `;
 
 export const Box = styled.div`
-  background-color: #aaa;
-  padding: 40px;
-  border-radius: 10px;
-  width: 500px;
-  height: auto;
+    width: 100%;
+    max-width: 400px;
+    min-width: 300px;
+    background: rgba(255, 255, 255, 0.75);
+    padding: 3%;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(45, 41, 41, 0.3);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 `;
 
 export const Title = styled.h2`
-  text-align: center;
-  margin-bottom: 20px;
+    text-align: center;
 `;
 
-export const SubText = styled.p`
-  font-weight: bold;
-`;
-
-export const CheckLine = styled.div`
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  margin-bottom: 20px;
-  gap: 227px; 
-
-  input[type='checkbox'] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-  }
-`;
+export const CheckLine = styled(Checkbox)``;
 
 export const Section = styled.div`
-  background-color: #cbcccd;
-  padding: 20px;
-  margin-bottom: 20px;
-  border-radius: 5px;
+    // background-color: #cbcccd;
+    // padding: 20px;
+    // margin-bottom: 20px;
+    // border-radius: 5px;
 `;
 
-export const Required = styled.span`
-  color: red;
-`;
+export const TextArea = styled(TextField).attrs({
+    multiline: true,
+    rows: 5,
+})`
+    width: 95%;
+    overflow-y: auto;
 
-export const TextArea = styled.textarea`
-  width: 95%;
-  height: 100px;
-  resize: none;
-  margin: 10px 0;
-  padding: 10px;
-  font-size: 14px;
+    // 내부 textarea에 직접 스타일 지정 필요할 수도 있음
+    & .MuiInputBase-root {
+        padding: 10px;
+        font-size: 14px;
+        line-height: 1.4;
+    }
+
+    & textarea {
+        resize: none;
+        overflow-y: auto;
+    }
 `;
 
 export const ButtonGroup = styled.div`
-  display: flex;
-  justify-content: space-between;
-`;
-
-export const BackButton = styled.button`
-  background-color: #ccc;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 30px;
-  font-size: 16px;
-  cursor: pointer;
-`;
-
-export const SubmitButton = styled.button`
-  background-color: black;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 30px;
-  font-size: 16px;
-  cursor: pointer;
-`;
-
-export const CheckLabel = styled.label`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: bold;
-  font-size: 15px;
-  margin-top: 10px;
-
-  input[type='checkbox'] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-  }
-`;
-
-export const CheckLabelRow = styled.label`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;         // 또는 300px, 400px 등 원하는 너비
-  font-weight: bold;
-  font-size: 16px;
-
-  input[type='checkbox'] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-  }
-`;
-
-export const TitleWithCheckbox = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: bold;
-  margin-bottom: 10px;
-
-  input[type='checkbox'] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-  }
+    display: flex;
+    width: 95%;
+    justify-content: flex-end;
+    margin-top: 5%;
 `;

@@ -4,15 +4,38 @@ import * as S from "./RegisterPage.style";
 import Input from "../../component/Input/Input.js";
 import LongButton from "../../component/LongButton/LongButton.js";
 import { useNavigate } from "react-router-dom";
+import CustomModal from "../../component/CustomModal/CustomModal.js";
 
 function RegisterPage() {
     const [id, setId] = useState("");
     const [password, setPassword] = useState("");
     const [passwordCheck, setPasswordCheck] = useState("");
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalInfo, setModalInfo] = useState({ title: "", message: "" });
+
     const navigate = useNavigate();
     const handleRegister = () => {
-        console.log("회원가입 시도:", { id, password, password });
-        navigate("/termspage");
+        console.log("회원가입 시도:", { id, password, passwordCheck });
+
+        if (password !== passwordCheck) {
+            setModalInfo({
+                title: "회원가입 실패",
+                message: "비밀번호가 일치하지 않습니다.",
+            });
+            setModalOpen(true);
+            return;
+        }
+
+        if (id === "admin") {
+            setModalInfo({
+                title: "회원가입 실패",
+                message: "이미 사용 중인 아이디입니다.",
+            });
+            setModalOpen(true);
+            return;
+        }
+
+        navigate("/termspages");
     };
 
     return (
@@ -51,6 +74,14 @@ function RegisterPage() {
                     <LongButton txt="가입하기" onClick={handleRegister} />
                 </S.RegisterBox>
             </S.Container>
+            <CustomModal
+                open={modalOpen}
+                onClose={() => setModalOpen(false)}
+                title={modalInfo.title}
+                message={modalInfo.message}
+                icon={<img src="/image/logo.png" alt="icon" width={60} />}
+                buttons={[{ label: "확인", onClick: () => setModalOpen(false) }]}
+            />
         </>
     );
 }

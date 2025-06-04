@@ -5,7 +5,7 @@ import Sidebar from "../../component/Sidebar/Sidebar";
 import ShortButton from "../../component/ShortButton/ShortButton";
 import CustomModal from "../../component/CustomModal/CustomModal.js";
 import { useNavigate } from "react-router-dom";
-import { Spinner } from "../../component/CustomModal/CustomModal.style";
+import * as D from "../../component/CustomModal/CustomModal.style";
 
 function RenderPage() {
     const fileInputRef = useRef(null);
@@ -84,10 +84,23 @@ function RenderPage() {
                 }}
                 title={modalState === "loading" ? "분석 중입니다" : "분석 완료"}
                 message={modalState === "loading" ? "잠시만 기다려 주세요..." : "분석이 완료되었습니다."}
-                icon={modalState === "loading" ? <Spinner /> : <img src="/image/logo.png" alt="로고" width={60} />}
+                icon={
+                    <D.SpinnerWrapper>
+                        <D.Spinner visible={modalState === "loading"} />
+                        <D.CheckIcon visible={modalState === "done"} />
+                    </D.SpinnerWrapper>
+                }
                 buttons={
                     modalState === "loading"
-                        ? [] // 로딩 중엔 버튼 없음
+                        ? [
+                              {
+                                  label: "취소",
+                                  onClick: () => {
+                                      setModalOpen(false);
+                                      setModalState("idle");
+                                  },
+                              },
+                          ]
                         : [
                               {
                                   label: "기록 보기",

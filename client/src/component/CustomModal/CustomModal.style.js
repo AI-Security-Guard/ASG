@@ -1,5 +1,62 @@
 import { styled, keyframes } from "@mui/material/styles";
 import { Box } from "@mui/material";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import { shouldForwardProp } from "@mui/system";
+
+const spin = keyframes`
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+`;
+
+// 로딩 애니메이션 (분석하기 버튼)
+export const SpinnerWrapper = styled("div")({
+    position: "relative",
+    width: "60px",
+    height: "60px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+});
+
+export const Spinner = styled("div", {
+    shouldForwardProp: (prop) => prop !== "visible",
+})(({ visible }) => ({
+    width: "40px",
+    height: "40px",
+    border: "6px solid rgba(0, 0, 0, 0.1)",
+    borderTop: "6px solid #4a90e2",
+    borderRadius: "50%",
+    position: "absolute",
+    top: 0,
+    left: 0,
+
+    animationName: spin,
+    animationDuration: "1s",
+    animationTimingFunction: "linear",
+    animationIterationCount: "infinite",
+
+    opacity: visible ? 1 : 0,
+    transform: visible ? "scale(1)" : "scale(1.2)",
+    transition: "opacity 0.5s ease, transform 0.5s ease",
+}));
+
+// 체크 아이콘 (분석하기 버튼)
+export const CheckIcon = styled(CheckCircleIcon, {
+    shouldForwardProp: (prop) => prop !== "visible",
+})(({ visible }) => ({
+    color: " #4a90e2",
+    fontSize: "60px",
+    position: "absolute",
+    top: 0,
+    left: 0,
+    opacity: visible ? 1 : 0,
+    transform: visible ? "scale(1)" : "scale(0.6)",
+    transition: "opacity 0.5s ease, transform 0.5s ease",
+}));
 
 const fadeInModal = keyframes`
   from {
@@ -70,21 +127,5 @@ export const CloseButton = styled("button")({
     transition: "color 0.2s ease",
     "&:hover": {
         color: "#000",
-    },
-});
-
-export const Spinner = styled("div")({
-    width: "50px",
-    height: "50px",
-    border: "6px solid rgba(0, 0, 0, 0.1)",
-    borderTop: "6px solid #4a90e2",
-    borderRadius: "50%",
-    animation: "spin 1s linear infinite",
-
-    margin: "1rem auto",
-    "@keyframes spin": {
-        to: {
-            transform: "rotate(360deg)",
-        },
     },
 });

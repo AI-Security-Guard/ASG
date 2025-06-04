@@ -12,6 +12,7 @@ function RenderPage() {
     const [videoSrc, setVideoSrc] = useState(null);
     const [modalOpen, setModalOpen] = useState(false);
     const [modalState, setModalState] = useState("idle");
+    const [modalType, setModalType] = useState("none");
 
     const navigate = useNavigate();
 
@@ -32,6 +33,11 @@ function RenderPage() {
         if (fileInputRef.current) {
             fileInputRef.current.value = null;
         }
+    };
+
+    const handleDeleteVideoClick = () => {
+        setModalType("deleteConfirm");
+        setModalOpen(true);
     };
 
     const handleGoAnalysis = () => {
@@ -62,7 +68,7 @@ function RenderPage() {
                                 <S.DeleteVideo
                                     src="/image/deleteVideo.png"
                                     alt="영상 삭제"
-                                    onClick={handleDeleteVideo}
+                                    onClick={handleDeleteVideoClick}
                                 />
                             </S.DeleteWrapper>
                         </>
@@ -81,17 +87,52 @@ function RenderPage() {
                 onClose={() => {
                     setModalOpen(false);
                     setModalState("idle");
+                    setModalType("none");
                 }}
-                title={modalState === "loading" ? "분석 중입니다" : "분석 완료"}
-                message={modalState === "loading" ? "잠시만 기다려 주세요..." : "분석이 완료되었습니다."}
+                title={
+                    modalType === "deleteConfirm"
+                        ? "삭제 하시겠습니까?"
+                        : modalState === "loading"
+                        ? "분석 중입니다"
+                        : "분석 완료"
+                }
+                message={
+                    modalType === "deleteConfirm"
+                        ? "삭제하려면 확인 버튼을 클릭 해주세요."
+                        : modalState === "loading"
+                        ? "잠시만 기다려 주세요..."
+                        : "분석이 완료되었습니다."
+                }
                 icon={
-                    <D.SpinnerWrapper>
-                        <D.Spinner visible={modalState === "loading"} />
-                        <D.CheckIcon visible={modalState === "done"} />
-                    </D.SpinnerWrapper>
+                    modalType === "deleteConfirm" ? (
+                        <img src="/image/logo.png" alt="로고" width={60} />
+                    ) : (
+                        <D.SpinnerWrapper>
+                            <D.Spinner visible={modalState === "loading"} />
+                            <D.CheckIcon visible={modalState === "done"} />
+                        </D.SpinnerWrapper>
+                    )
                 }
                 buttons={
-                    modalState === "loading"
+                    modalType === "deleteConfirm"
+                        ? [
+                              {
+                                  label: "취소",
+                                  onClick: () => {
+                                      setModalOpen(false);
+                                      setModalType("none");
+                                  },
+                              },
+                              {
+                                  label: "확인",
+                                  onClick: () => {
+                                      handleDeleteVideo();
+                                      setModalOpen(false);
+                                      setModalType("none");
+                                  },
+                              },
+                          ]
+                        : modalState === "loading"
                         ? [
                               {
                                   label: "취소",
@@ -105,7 +146,6 @@ function RenderPage() {
                               {
                                   label: "기록 보기",
                                   onClick: () => {
-                                      // 기록 보기 로직
                                       setModalOpen(false);
                                       setModalState("idle");
                                   },

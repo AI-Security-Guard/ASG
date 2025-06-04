@@ -72,3 +72,19 @@ export const CloseButton = styled("button")({
         color: "#000",
     },
 });
+
+export const Spinner = styled("div")({
+    width: "50px",
+    height: "50px",
+    border: "6px solid rgba(0, 0, 0, 0.1)",
+    borderTop: "6px solid #4a90e2",
+    borderRadius: "50%",
+    animation: "spin 1s linear infinite",
+
+    margin: "1rem auto",
+    "@keyframes spin": {
+        to: {
+            transform: "rotate(360deg)",
+        },
+    },
+});

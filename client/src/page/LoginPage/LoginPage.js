@@ -4,12 +4,14 @@ import Header from "../../component/Header/Header.js";
 import LongButton from "../../component/LongButton/LongButton.js";
 import Input from "../../component/Input/Input.js";
 import { useNavigate } from "react-router-dom";
+import CustomModal from "../../component/CustomModal/CustomModal.js"; // 모달 import
 
 function LoginPage() {
     const navigate = useNavigate();
     const [id, setId] = useState("");
     const [password, setPassword] = useState("");
     const [showModal, setShowModal] = useState(false);
+    const [modalOpen, setModalOpen] = useState(false);
 
     const handleLogin = () => {
         if (!id || !password) {
@@ -36,6 +38,13 @@ function LoginPage() {
                     <LongButton txt="로그인" onClick={handleLogin} />
                 </S.LoginBox>
             </S.Container>
+            <CustomModal
+                open={modalOpen}
+                title="로그인 실패"
+                message="아이디/비밀번호를 확인해주세요."
+                icon={<img src="/icon/cctv.png" alt="icon" width={60} />}
+                buttons={[{ label: "확인", onClick: () => setModalOpen(false) }]}
+            />
         </>
     );
 }

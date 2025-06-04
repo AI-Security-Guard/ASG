@@ -1,7 +1,6 @@
 import { styled, keyframes } from "@mui/material/styles";
-import { Box, Button } from "@mui/material";
+import { Box } from "@mui/material";
 
-// ✨ 모달 등장 애니메이션
 const fadeInModal = keyframes`
   from {
     opacity: 0;
@@ -18,31 +17,38 @@ export const ModalBox = styled(Box)(({ theme }) => ({
     top: "50%",
     left: "50%",
     transform: "translate(-50%, -50%)",
-    width: 400,
-    minHeight: 260,
+    width: 420,
+    minHeight: 280,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    justifyContent: "space-around",
+    justifyContent: "center",
 
-    // ✨ Glass 효과 + 그라데이션 배경
-    backdropFilter: "blur(16px)",
-    WebkitBackdropFilter: "blur(16px)",
-    background: "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.18))",
-    border: "1px solid rgba(255, 255, 255, 0.25)",
+    background: "rgba(255, 255, 255, 0.5)",
+    backdropFilter: "blur(18px)",
+    WebkitBackdropFilter: "blur(18px)",
+    border: "1px solid rgba(255, 255, 255, 0.3)",
 
-    // ✨ 그림자 + 입체감
-    boxShadow: "0 20px 50px rgba(0, 0, 0, 0.3)",
+    boxShadow: "0 16px 48px rgba(0, 0, 0, 0.15)",
     borderRadius: "20px",
 
-    // ✨ 텍스트 스타일
-    padding: theme.spacing(4),
+    padding: "40px 30px",
     textAlign: "center",
-    color: "#ffffff",
+    color: "#333333",
     fontFamily: "'Pretendard', sans-serif",
 
-    // ✨ 애니메이션
     animation: `${fadeInModal} 0.3s ease-out forwards`,
+
+    "& h2": {
+        fontSize: "1.6rem",
+        fontWeight: 700,
+        marginBottom: "1rem",
+    },
+    "& p": {
+        fontSize: "1rem",
+        color: "#444",
+        marginBottom: "1.5rem",
+    },
 }));
 
 export const ButtonGroup = styled("div")({
@@ -50,4 +56,19 @@ export const ButtonGroup = styled("div")({
     gap: "12px",
     justifyContent: "center",
     flexWrap: "wrap",
+});
+
+export const CloseButton = styled("button")({
+    position: "absolute",
+    top: "16px",
+    right: "16px",
+    background: "transparent",
+    border: "none",
+    fontSize: "1.4rem",
+    color: "#555",
+    cursor: "pointer",
+    transition: "color 0.2s ease",
+    "&:hover": {
+        color: "#000",
+    },
 });

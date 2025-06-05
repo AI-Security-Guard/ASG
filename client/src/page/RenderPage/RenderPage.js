@@ -6,6 +6,7 @@ import ShortButton from "../../component/ShortButton/ShortButton";
 import CustomModal from "../../component/CustomModal/CustomModal.js";
 import { useNavigate } from "react-router-dom";
 import * as D from "../../component/CustomModal/CustomModal.style";
+import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 
 function RenderPage() {
     const fileInputRef = useRef(null);
@@ -105,7 +106,7 @@ function RenderPage() {
                 }
                 icon={
                     modalType === "deleteConfirm" ? (
-                        <img src="/image/logo.png" alt="로고" width={60} />
+                        <WarningAmberRoundedIcon style={{ fontSize: 60, color: "#6E6E6E" }} />
                     ) : (
                         <D.SpinnerWrapper>
                             <D.Spinner visible={modalState === "loading"} />

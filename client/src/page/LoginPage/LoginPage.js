@@ -5,6 +5,7 @@ import LongButton from "../../component/LongButton/LongButton.js";
 import Input from "../../component/Input/Input.js";
 import { useNavigate } from "react-router-dom";
 import CustomModal from "../../component/CustomModal/CustomModal.js";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 
 function LoginPage() {
     const navigate = useNavigate();
@@ -43,7 +44,7 @@ function LoginPage() {
                 onClose={() => setModalOpen(false)}
                 title="로그인 실패"
                 message="아이디/비밀번호를 확인해주세요."
-                icon={<img src="/image/logo.png" alt="icon" width={60} />}
+                icon={<ErrorOutlineIcon style={{ fontSize: 60, color: "#6E6E6E" }} />}
                 buttons={[{ label: "확인", onClick: () => setModalOpen(false) }]}
             />
         </>

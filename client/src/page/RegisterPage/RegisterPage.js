@@ -5,6 +5,7 @@ import Input from "../../component/Input/Input.js";
 import LongButton from "../../component/LongButton/LongButton.js";
 import { useNavigate } from "react-router-dom";
 import CustomModal from "../../component/CustomModal/CustomModal.js";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 
 function RegisterPage() {
     const [id, setId] = useState("");
@@ -19,7 +20,6 @@ function RegisterPage() {
 
         if (password !== passwordCheck) {
             setModalInfo({
-                title: "회원가입 실패",
                 message: "비밀번호가 일치하지 않습니다.",
             });
             setModalOpen(true);
@@ -28,14 +28,13 @@ function RegisterPage() {
 
         if (id === "admin") {
             setModalInfo({
-                title: "회원가입 실패",
                 message: "이미 사용 중인 아이디입니다.",
             });
             setModalOpen(true);
             return;
         }
 
-        navigate("/termspages");
+        // navigate("/render");
     };
 
     return (
@@ -77,9 +76,9 @@ function RegisterPage() {
             <CustomModal
                 open={modalOpen}
                 onClose={() => setModalOpen(false)}
-                title={modalInfo.title}
+                title="회원가입 실패"
                 message={modalInfo.message}
-                icon={<img src="/image/logo.png" alt="icon" width={60} />}
+                icon={<ErrorOutlineIcon style={{ fontSize: 60, color: "#6E6E6E" }} />}
                 buttons={[{ label: "확인", onClick: () => setModalOpen(false) }]}
             />
         </>

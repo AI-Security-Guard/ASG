@@ -149,6 +149,7 @@ function RenderPage() {
                                   onClick: () => {
                                       setModalOpen(false);
                                       setModalState("idle");
+                                      navigate("/List");
                                   },
                               },
                               {

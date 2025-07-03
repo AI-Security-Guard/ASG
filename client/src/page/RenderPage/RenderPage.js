@@ -28,12 +28,14 @@ function RenderPage() {
             const videoURL = URL.createObjectURL(file);
             setVideoSrc(videoURL);
 
+            const user = JSON.parse(localStorage.getItem("user"));
+            const username = user?.username;
             const formData = new FormData();
-            // formData.append("username", username); // ← 로그인 상태에서 가져온 값
-            // formData.append("video", file);
+            formData.append("username", username);
+            formData.append("video", file);
 
             try {
-                const response = await axios.post("http://localhost:5000/uploadVideo", formData);
+                const response = await axios.post("http://127.0.0.1:5000/uploadVideo", formData);
                 console.log("업로드 성공:", response.data);
             } catch (err) {
                 console.error("업로드 실패:", err);

@@ -1,0 +1,4 @@
+# DB 파일 무시
+*.sqlite
+*.db
+server/uploaded_videos/

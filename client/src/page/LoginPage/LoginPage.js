@@ -15,21 +15,21 @@ function LoginPage() {
     const [modalOpen, setModalOpen] = useState(false);
 
     const handleLogin = async () => {
-        // if (!id || !password) {
-        //     setModalOpen(true); // 빈 값일 때 모달
-        //     return;
-        // }
+        if (!id || !password) {
+            setModalOpen(true);
+            return;
+        }
 
         try {
             const response = await axios.post("http://127.0.0.1:5000/login", {
                 username: id,
                 password: password,
             });
-
+            const user = response.data.user;
+            localStorage.setItem("user", JSON.stringify(user));
             navigate("/render");
         } catch (error) {
-            console.error("❌ 로그인 실패:", error);
-            setModalOpen(true); // 실패해도 모달 띄우기
+            setModalOpen(true);
         }
     };
 

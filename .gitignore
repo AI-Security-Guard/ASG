@@ -2,3 +2,4 @@
 *.sqlite
 *.db
 server/uploaded_videos/
+*.pyc

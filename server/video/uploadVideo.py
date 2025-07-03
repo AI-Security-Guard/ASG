@@ -19,6 +19,10 @@ def upload_video():
     if not user:
         return jsonify({"error": "User not found"}), 404
 
+    # 이미 video가 존재하면 업로드 거부
+    if user.video:
+        return jsonify({"error": "User already has a video"}), 400
+
     # 폴더 생성 후 저장
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     filename = f"{username}_{file.filename}"

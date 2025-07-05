@@ -6,6 +6,7 @@ import Input from "../../component/Input/Input.js";
 import { useNavigate } from "react-router-dom";
 import CustomModal from "../../component/CustomModal/CustomModal.js";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import axios from "axios";
 
 function LoginPage() {
     const navigate = useNavigate();
@@ -13,16 +14,25 @@ function LoginPage() {
     const [password, setPassword] = useState("");
     const [modalOpen, setModalOpen] = useState(false);
 
-    const handleLogin = () => {
+    const handleLogin = async () => {
         if (!id || !password) {
-            setModalOpen(true); // ✅ 이걸로 바꿔줘야 모달이 뜸
+            setModalOpen(true);
             return;
         }
 
-        navigate("/List");
-
-        console.log("로그인 시도:", { id, password });
+        try {
+            const response = await axios.post("http://127.0.0.1:5000/login", {
+                username: id,
+                password: password,
+            });
+            const user = response.data.user;
+            localStorage.setItem("user", JSON.stringify(user));
+            navigate("/render");
+        } catch (error) {
+            setModalOpen(true);
+        }
     };
+
     return (
         <>
             <Header />

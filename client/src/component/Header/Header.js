@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     HeaderContainer,
     Logo,
@@ -16,6 +16,15 @@ function Header() {
     const navigate = useNavigate();
     const [isLogin, setIsLogin] = useState(false);
     const [id, setId] = useState("sojeong0302");
+
+    useEffect(() => {
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+            const user = JSON.parse(storedUser);
+            setId(user.username);
+            setIsLogin(true);
+        }
+    }, []);
 
     return (
         <>

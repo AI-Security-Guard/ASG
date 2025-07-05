@@ -7,6 +7,7 @@ import CustomModal from "../../component/CustomModal/CustomModal.js";
 import { useNavigate } from "react-router-dom";
 import * as D from "../../component/CustomModal/CustomModal.style";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import axios from "axios";
 
 function RenderPage() {
     const fileInputRef = useRef(null);
@@ -21,11 +22,24 @@ function RenderPage() {
         fileInputRef.current?.click();
     };
 
-    const handleFileChange = (e) => {
+    const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (file) {
             const videoURL = URL.createObjectURL(file);
             setVideoSrc(videoURL);
+
+            const user = JSON.parse(localStorage.getItem("user"));
+            const username = user?.username;
+            const formData = new FormData();
+            formData.append("username", username);
+            formData.append("video", file);
+
+            try {
+                const response = await axios.post("http://127.0.0.1:5000/uploadVideo", formData);
+                console.log("업로드 성공:", response.data);
+            } catch (err) {
+                console.error("업로드 실패:", err);
+            }
         }
     };
 

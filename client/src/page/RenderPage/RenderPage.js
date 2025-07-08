@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import * as S from "./RenderPage.style";
 import Header from "../../component/Header/Header";
 import Sidebar from "../../component/Sidebar/Sidebar";
@@ -17,6 +17,31 @@ function RenderPage() {
     const [modalType, setModalType] = useState("none");
 
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const user = JSON.parse(localStorage.getItem("user"));
+        const username = user?.username;
+
+        const fetchSavedVideo = async () => {
+            try {
+                const response = await axios.get("http://127.0.0.1:5000/bringVideo", {
+                    params: { username },
+                    responseType: "blob", // 🎯 파일로 받아야 함!
+                });
+
+                const blob = new Blob([response.data], { type: "video/mp4" });
+                const videoURL = URL.createObjectURL(blob);
+                setVideoSrc(videoURL);
+
+                console.log("가져오기 성공:", videoURL);
+            } catch (err) {
+                console.error("가져오기 실패:", err);
+                console.log("username:", username);
+            }
+        };
+
+        fetchSavedVideo();
+    }, []);
 
     const handleIconClick = () => {
         fileInputRef.current?.click();

@@ -19,8 +19,11 @@ def bring_video():
     if not user:
         return jsonify({"error": "유저가 없음"}), 404
 
-    # 파일이 실제 존재하는지 확인
-    if not os.path.exists(user.video):
-        return jsonify({"error": "video 파일 경로가 잘못되었거나 없음"}), 404
+    # 영상이 없는 경우: 파일 경로 자체가 없거나, 빈 값
+    if not user.video or not os.path.exists(user.video):
+        return (
+            jsonify({"message": "해당 유저는 영상이 없습니다.", "hasVideo": False}),
+            200,
+        )
 
     return send_file(user.video, as_attachment=True)

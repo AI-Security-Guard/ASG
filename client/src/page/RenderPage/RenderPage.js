@@ -26,17 +26,23 @@ function RenderPage() {
             try {
                 const response = await axios.get("http://127.0.0.1:5000/bringVideo", {
                     params: { username },
-                    responseType: "blob", // 🎯 파일로 받아야 함!
+                    responseType: "blob",
                 });
 
-                const blob = new Blob([response.data], { type: "video/mp4" });
-                const videoURL = URL.createObjectURL(blob);
-                setVideoSrc(videoURL);
-
-                console.log("가져오기 성공:", videoURL);
+                const contentType = response.headers["content-type"];
+                if (contentType && contentType.includes("application/json")) {
+                    const text = await response.data.text();
+                    const json = JSON.parse(text);
+                    if (json.hasVideo === false) {
+                        return;
+                    }
+                } else {
+                    const blob = new Blob([response.data], { type: "video/mp4" });
+                    const videoURL = URL.createObjectURL(blob);
+                    setVideoSrc(videoURL);
+                }
             } catch (err) {
-                console.error("가져오기 실패:", err);
-                console.log("username:", username);
+                console.error(err);
             }
         };
 

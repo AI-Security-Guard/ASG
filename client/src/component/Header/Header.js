@@ -37,7 +37,13 @@ function Header() {
                     {isLogin ? (
                         <>
                             <WelcomeMessage>{id}님 환영합니다!</WelcomeMessage>
-                            <Logout>로그아웃</Logout>
+                            <Logout onClick={() => {
+                                localStorage.removeItem("user");
+                                setIsLogin(false);
+                                navigate("/login");
+                            }}>
+                                로그아웃
+                            </Logout>
                         </>
                     ) : (
                         <>

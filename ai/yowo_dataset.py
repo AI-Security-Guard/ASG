@@ -1,94 +1,129 @@
-# yowo_dataset.py 파일
+# yowo_dataset.py
 
 import os
 import glob
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
-import numpy as np # NumPy를 임포트해야 합니다.
+import numpy as np
+import xml.etree.ElementTree as ET
 
 class YOWODataset(Dataset):
-    def __init__(self, root_dir, split='train', sequence_length=16, transform=None, max_objs=1, img_size=(224, 224)):
+    def __init__(self, root_dir, split='train', sequence_length=16, transform=None, img_size=(224, 224), max_objs=10):
         self.sequence_length = sequence_length
         self.transform = transform
+        self.img_size = img_size
         self.max_objs = max_objs
-        self.img_size = img_size # 이미지 크기를 저장할 변수 추가
-        self.samples = []
+        
+        # XML 파일이 있는 labels 폴더를 기준으로 삼습니다.
+        self.label_root = os.path.join(root_dir, split, 'labels')
+        self.frame_root = os.path.join(root_dir, split, 'frames')
+        
+        if not os.path.isdir(self.label_root):
+            raise ValueError(f"Labels directory not found at: {self.label_root}")
 
-        frame_root = os.path.join(root_dir, split, 'frames')
-        label_root = os.path.join(root_dir, split, 'labels')
+        self.xml_files = sorted(glob.glob(os.path.join(self.label_root, '*.xml')))
+        
+        # 모든 비디오의 어노테이션 정보를 미리 파싱하여 저장합니다.
+        self.annotations = self._parse_all_annotations()
+        
+        # 학습에 사용할 샘플(비디오 클립) 리스트를 생성합니다.
+        self.samples = self._create_samples()
 
-        video_folders = sorted(os.listdir(frame_root))
-
-        for video_name in video_folders:
-            frame_dir = os.path.join(frame_root, video_name)
-            label_dir = os.path.join(label_root, video_name)
-
-            frame_paths = sorted(glob.glob(os.path.join(frame_dir, '*.jpg')))
+    def _parse_all_annotations(self):
+        annotations = {}
+        print("Parsing XML annotations...")
+        for xml_file in tqdm(self.xml_files, desc="Parsing XMLs"):
+            video_name = os.path.splitext(os.path.basename(xml_file))[0]
+            tree = ET.parse(xml_file)
+            root = tree.getroot()
             
-            # 레이블 파일 경로는 프레임 경로로부터 생성 (레이블이 없는 경우 대비)
-            # label_paths = sorted(glob.glob(os.path.join(label_dir, '*.txt')))
+            video_annotations = {}
+            img_width = int(root.find('size').find('width').text)
+            img_height = int(root.find('size').find('height').text)
 
-            if len(frame_paths) < sequence_length:
+            # assault를 클래스 인덱스 0으로 가정합니다.
+            # 나중에 클래스 추가 시, class_map을 만들어 관리할 수 있습니다.
+            class_map = {'assault': 0}
+
+            for track in root.findall('track'):
+                label = track.get('label')
+                if label not in class_map:
+                    continue
+                
+                class_idx = class_map[label]
+
+                for box in track.findall('box'):
+                    frame_idx = int(box.get('frame'))
+                    xtl = float(box.get('xtl'))
+                    ytl = float(box.get('ytl'))
+                    xbr = float(box.get('xbr'))
+                    ybr = float(box.get('ybr'))
+                    
+                    # YOLO 포맷으로 변환: [class, x_center, y_center, width, height]
+                    x_center = (xtl + xbr) / 2 / img_width
+                    y_center = (ytl + ybr) / 2 / img_height
+                    width = (xbr - xtl) / img_width
+                    height = (ybr - ytl) / img_height
+
+                    if frame_idx not in video_annotations:
+                        video_annotations[frame_idx] = []
+                    video_annotations[frame_idx].append([class_idx, x_center, y_center, width, height])
+            
+            annotations[video_name] = video_annotations
+        return annotations
+
+    def _create_samples(self):
+        samples = []
+        print("Creating training samples...")
+        for video_name, video_annotations in tqdm(self.annotations.items(), desc="Creating Samples"):
+            video_frame_dir = os.path.join(self.frame_root, video_name)
+            frame_paths = sorted(glob.glob(os.path.join(video_frame_dir, '*.jpg')))
+            num_frames = len(frame_paths)
+
+            if num_frames < self.sequence_length:
                 continue
 
-            for i in range(len(frame_paths) - sequence_length + 1):
-                frame_seq = frame_paths[i:i + sequence_length]
+            for i in range(num_frames - self.sequence_length + 1):
+                # 시퀀스 내에 어노테이션이 하나라도 있는지 확인
+                has_annotation = False
+                for frame_idx_offset in range(self.sequence_length):
+                    frame_num = i + frame_idx_offset
+                    if frame_num in video_annotations:
+                        has_annotation = True
+                        break
                 
-                # 시퀀스 내 하나라도 1이면 행동이 있다고 간주
-                is_abnormal = False
-                for frame_path in frame_seq:
-                    # 레이블 파일 경로를 프레임 파일 경로 기반으로 구성
-                    label_path = frame_path.replace('frames', 'labels').replace('.jpg', '.txt')
-                    if os.path.exists(label_path):
-                        with open(label_path, 'r') as f:
-                            if f.read().strip() == '1':
-                                is_abnormal = True
-                                break
-                
-                self.samples.append((frame_seq, is_abnormal))
+                if has_annotation:
+                    samples.append((video_name, i, frame_paths[i:i + self.sequence_length]))
+        return samples
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
-        # 💡 [수정] 전체 __getitem__ 함수를 이 코드로 교체하세요.
-        try:
-            frame_seq_paths, is_abnormal = self.samples[idx]
-            images = []
+        video_name, start_frame, frame_paths = self.samples[idx]
+        
+        images = []
+        for frame_path in frame_paths:
+            img = Image.open(frame_path).convert('RGB')
+            img = img.resize(self.img_size)
+            if self.transform:
+                img = self.transform(img)
+            else:
+                img_np = np.array(img)
+                img = torch.tensor(img_np).permute(2, 0, 1).float() / 255.0
+            images.append(img)
+        
+        video_tensor = torch.stack(images, dim=0)
 
-            for frame_path in frame_seq_paths:
-                img = Image.open(frame_path).convert('RGB')
-                
-                # 이미지를 리사이즈합니다 (모든 이미지 크기 통일)
-                img = img.resize(self.img_size)
+        # 라벨 생성: 시퀀스의 마지막 프레임에 해당하는 라벨을 사용
+        target = torch.zeros((self.max_objs, 5))
+        last_frame_idx = start_frame + self.sequence_length - 1
+        
+        if video_name in self.annotations and last_frame_idx in self.annotations[video_name]:
+            boxes = self.annotations[video_name][last_frame_idx]
+            num_boxes = min(len(boxes), self.max_objs)
+            for i in range(num_boxes):
+                target[i] = torch.tensor(boxes[i])
 
-                if self.transform:
-                    img = self.transform(img)
-                else:
-                    # 💡 [수정 1] PIL 이미지를 NumPy 배열로 변환 후 텐서로 만듭니다.
-                    img_np = np.array(img)
-                    img = torch.tensor(img_np).permute(2, 0, 1).float() / 255.0
-                
-                images.append(img)
-
-            # [T, C, H, W]
-            video_tensor = torch.stack(images, dim=0)
-
-            # ---------- 라벨 생성 (YOLO 포맷용) ----------
-            # [class, x_center, y_center, w, h]
-            target = torch.zeros((self.max_objs, 5))
-            if is_abnormal:
-                # 전체 프레임을 bbox로 가정
-                target[0] = torch.tensor([1, 0.5, 0.5, 1.0, 1.0])
-
-            return video_tensor, target
-
-        except Exception as e:
-            # 💡 [수정 2] 'index'를 'idx'로 변경했습니다.
-            print(f"🚨 [Dataset Error] Corrupted data at index {idx}. Error: {e}. Skipping.")
-            
-            # 💡 [수정 3] 오류 발생 시에도 정상 데이터와 동일한 모양의 '더미' 텐서를 반환합니다.
-            dummy_video = torch.zeros((self.sequence_length, 3, self.img_size[1], self.img_size[0]))
-            dummy_target = torch.zeros((self.max_objs, 5))
-            return dummy_video, dummy_target
+        return video_tensor, target

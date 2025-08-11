@@ -1,11 +1,11 @@
-# train_yowo.py
+# train_yowo.py (Path updated)
 
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import multiprocessing
-import numpy as np # tqdm을 위해 추가
+import numpy as np
 
 # 원래의 RegionLoss를 다시 사용
 from core.region_loss import RegionLoss 
@@ -16,7 +16,8 @@ from cfg.defaults import get_cfg
 def train(cfg, device, batch_size, num_workers):
     # ------------------ 데이터 로딩 ------------------
     print("📦 Loading train dataset...")
-    train_dataset = YOWODataset(split="train", root_dir="D:/CCTV/CCTV/mini_dataset")
+    # [수정] 데이터셋 경로를 새로운 경로로 변경합니다.
+    train_dataset = YOWODataset(split="train", root_dir="D:/CCTV/CCTV/sample_dataset")
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
@@ -28,7 +29,8 @@ def train(cfg, device, batch_size, num_workers):
     print(f"✅ Train samples: {len(train_dataset)}")
 
     print("📦 Loading val dataset...")
-    val_dataset = YOWODataset(split="val", root_dir="D:/CCTV/CCTV/mini_dataset")
+    # [수정] 검증 데이터셋 경로도 새로운 경로로 변경합니다.
+    val_dataset = YOWODataset(split="val", root_dir="D:/CCTV/CCTV/sample_dataset")
     val_loader = DataLoader(
         val_dataset,
         batch_size=batch_size,
@@ -60,7 +62,7 @@ def train(cfg, device, batch_size, num_workers):
             outputs = model(videos)
             
             # 손실 함수 호출을 원래의 탐지 방식에 맞게 복원
-            loss = criterion(outputs, labels) # RegionLoss는 추가 인자 없이 호출 가능할 수 있음
+            loss = criterion(outputs, labels)
             
             loss.backward()
             optimizer.step()
@@ -106,7 +108,9 @@ if __name__ == "__main__":
     cfg.MODEL.BACKBONE_3D = "resnet18"
     
     batch_size = 8
-    num_workers = 0 # XML 파싱이 복잡하므로, 안정성을 위해 num_workers=0으로 시작하는 것을 권장
+    # XML 파싱, 프레임 로딩 등 복잡한 작업을 하므로, 안정성을 위해 num_workers=0으로 시작하는 것을 권장합니다.
+    # 학습이 안정적으로 시작되면 이 값을 2, 4 등으로 늘려 속도를 높일 수 있습니다.
+    num_workers = 0 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f">>> USING Device: {device}")

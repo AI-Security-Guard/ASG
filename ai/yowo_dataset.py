@@ -1,4 +1,4 @@
-# yowo_dataset.py
+# yowo_dataset.py (Final Version with 1-based to 0-based fix)
 
 import os
 import glob
@@ -7,6 +7,7 @@ from torch.utils.data import Dataset
 from PIL import Image
 import numpy as np
 import xml.etree.ElementTree as ET
+from tqdm import tqdm
 
 class YOWODataset(Dataset):
     def __init__(self, root_dir, split='train', sequence_length=16, transform=None, img_size=(224, 224), max_objs=10):
@@ -15,7 +16,6 @@ class YOWODataset(Dataset):
         self.img_size = img_size
         self.max_objs = max_objs
         
-        # XML 파일이 있는 labels 폴더를 기준으로 삼습니다.
         self.label_root = os.path.join(root_dir, split, 'labels')
         self.frame_root = os.path.join(root_dir, split, 'frames')
         
@@ -24,10 +24,7 @@ class YOWODataset(Dataset):
 
         self.xml_files = sorted(glob.glob(os.path.join(self.label_root, '*.xml')))
         
-        # 모든 비디오의 어노테이션 정보를 미리 파싱하여 저장합니다.
         self.annotations = self._parse_all_annotations()
-        
-        # 학습에 사용할 샘플(비디오 클립) 리스트를 생성합니다.
         self.samples = self._create_samples()
 
     def _parse_all_annotations(self):
@@ -35,49 +32,66 @@ class YOWODataset(Dataset):
         print("Parsing XML annotations...")
         for xml_file in tqdm(self.xml_files, desc="Parsing XMLs"):
             video_name = os.path.splitext(os.path.basename(xml_file))[0]
-            tree = ET.parse(xml_file)
-            root = tree.getroot()
-            
-            video_annotations = {}
-            img_width = int(root.find('size').find('width').text)
-            img_height = int(root.find('size').find('height').text)
-
-            # assault를 클래스 인덱스 0으로 가정합니다.
-            # 나중에 클래스 추가 시, class_map을 만들어 관리할 수 있습니다.
-            class_map = {'assault': 0}
-
-            for track in root.findall('track'):
-                label = track.get('label')
-                if label not in class_map:
-                    continue
+            try:
+                tree = ET.parse(xml_file)
+                root = tree.getroot()
                 
-                class_idx = class_map[label]
+                video_annotations = {}
+                size_node = root.find('size')
+                if size_node is None: continue
+                
+                img_width_node = size_node.find('width')
+                img_height_node = size_node.find('height')
+                if img_width_node is None or img_height_node is None: continue
 
-                for box in track.findall('box'):
-                    frame_idx = int(box.get('frame'))
-                    xtl = float(box.get('xtl'))
-                    ytl = float(box.get('ytl'))
-                    xbr = float(box.get('xbr'))
-                    ybr = float(box.get('ybr'))
+                img_width = int(img_width_node.text)
+                img_height = int(img_height_node.text)
+
+                class_map = {'assault': 0}
+
+                for track in root.findall('track'):
+                    label = track.get('label')
+                    if label not in class_map:
+                        continue
                     
-                    # YOLO 포맷으로 변환: [class, x_center, y_center, width, height]
-                    x_center = (xtl + xbr) / 2 / img_width
-                    y_center = (ytl + ybr) / 2 / img_height
-                    width = (xbr - xtl) / img_width
-                    height = (ybr - ytl) / img_height
+                    class_idx = class_map[label]
 
-                    if frame_idx not in video_annotations:
-                        video_annotations[frame_idx] = []
-                    video_annotations[frame_idx].append([class_idx, x_center, y_center, width, height])
-            
-            annotations[video_name] = video_annotations
+                    for box in track.findall('box'):
+                        # [수정] XML의 1-based 프레임 번호를 0-based 인덱스로 변환하기 위해 1을 뺍니다.
+                        frame_idx = int(box.get('frame')) - 1
+                        
+                        xtl = float(box.get('xtl'))
+                        ytl = float(box.get('ytl'))
+                        xbr = float(box.get('xbr'))
+                        ybr = float(box.get('ybr'))
+                        
+                        x_center = (xtl + xbr) / 2 / img_width
+                        y_center = (ytl + ybr) / 2 / img_height
+                        width = (xbr - xtl) / img_width
+                        height = (ybr - ytl) / img_height
+
+                        if frame_idx not in video_annotations:
+                            video_annotations[frame_idx] = []
+                        video_annotations[frame_idx].append([class_idx, x_center, y_center, width, height])
+                
+                if video_annotations: # 어노테이션이 있는 경우에만 추가
+                    annotations[video_name] = video_annotations
+            except ET.ParseError:
+                print(f"Warning: Could not parse XML file {xml_file}")
+                continue
         return annotations
 
     def _create_samples(self):
         samples = []
         print("Creating training samples...")
+        if not self.annotations:
+            print("Warning: No valid annotations found after parsing. Cannot create samples.")
+            return samples
+
         for video_name, video_annotations in tqdm(self.annotations.items(), desc="Creating Samples"):
             video_frame_dir = os.path.join(self.frame_root, video_name)
+            if not os.path.isdir(video_frame_dir): continue
+            
             frame_paths = sorted(glob.glob(os.path.join(video_frame_dir, '*.jpg')))
             num_frames = len(frame_paths)
 
@@ -85,10 +99,9 @@ class YOWODataset(Dataset):
                 continue
 
             for i in range(num_frames - self.sequence_length + 1):
-                # 시퀀스 내에 어노테이션이 하나라도 있는지 확인
                 has_annotation = False
                 for frame_idx_offset in range(self.sequence_length):
-                    frame_num = i + frame_idx_offset
+                    frame_num = i + frame_idx_offset # 0-based index
                     if frame_num in video_annotations:
                         has_annotation = True
                         break
@@ -116,7 +129,6 @@ class YOWODataset(Dataset):
         
         video_tensor = torch.stack(images, dim=0)
 
-        # 라벨 생성: 시퀀스의 마지막 프레임에 해당하는 라벨을 사용
         target = torch.zeros((self.max_objs, 5))
         last_frame_idx = start_frame + self.sequence_length - 1
         

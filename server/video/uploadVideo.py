@@ -33,7 +33,19 @@ def upload_video():
     user.video = save_path
     db.session.commit()
 
+    # return (
+    #     jsonify({"message": "Video uploaded successfully", "user": user.to_dict()}),
+    #     200,
+    # )
     return (
-        jsonify({"message": "Video uploaded successfully", "user": user.to_dict()}),
+        jsonify(
+            {
+                "message": "Video uploaded successfully",
+                "user": {
+                    **user.to_dict(),
+                    "full_path": os.path.abspath(save_path),  # 🔥 절대 경로 추가
+                },
+            }
+        ),
         200,
     )

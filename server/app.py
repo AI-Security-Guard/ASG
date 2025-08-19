@@ -5,6 +5,7 @@ from models import db
 from auth import register_auth_blueprints
 from video import register_video_blueprints
 from flask_cors import CORS
+from video.deleteVideo import delete_video_bp
 
 
 app = Flask(__name__)
@@ -20,6 +21,7 @@ db.init_app(app)
 # 블루프린트 등록
 register_auth_blueprints(app)
 register_video_blueprints(app)
+app.register_blueprint(delete_video_bp)
 
 # DB 테이블 생성
 with app.app_context():

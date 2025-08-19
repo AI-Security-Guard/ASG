@@ -15,6 +15,7 @@ function RenderPage() {
     const [modalOpen, setModalOpen] = useState(false);
     const [modalState, setModalState] = useState("idle");
     const [modalType, setModalType] = useState("none");
+    const [videoPath, setVideoPath] = useState(null);
 
     const navigate = useNavigate();
 
@@ -68,32 +69,81 @@ function RenderPage() {
             try {
                 const response = await axios.post("http://127.0.0.1:5000/uploadVideo", formData);
                 console.log("업로드 성공:", response.data);
+                setVideoPath(response.data.user.full_path); // ✅ 서버 저장 경로 추출
             } catch (err) {
-                console.error("업로드 실패:", err);
+                console.error("업로드 실패:", err.response?.data || err.message);
             }
         }
     };
 
-    const handleDeleteVideo = () => {
+    // const handleDeleteVideo = () => {
+    //     setVideoSrc(null);
+    //     if (fileInputRef.current) {
+    //         fileInputRef.current.value = null;
+    //     }
+    // };
+
+    // const handleDeleteVideoClick = () => {
+    //     setModalType("deleteConfirm");
+    //     setModalOpen(true);
+    // };
+
+    // const handleGoAnalysis = () => {
+    //     setModalOpen(true);
+    //     setModalState("loading");
+
+    //     setTimeout(() => {
+    //         setModalState("done");
+    //     }, 3000); // 예시로 3초 후 완료로 변경
+    // };
+    const handleDeleteVideo = async () => {
+        const user = JSON.parse(localStorage.getItem("user"));
+        const username = user?.username;
+
+        if (!username) {
+            console.error("❌ username 없음");
+            return;
+        }
+
+        try {
+            await axios.delete("http://127.0.0.1:5000/deleteVideo", {
+                data: { username },
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+            console.log("✅ 영상 삭제 성공");
+        } catch (err) {
+            console.error("❌ 영상 삭제 실패:", err.response?.data || err.message);
+        }
+
+        // 프론트 상태 초기화
         setVideoSrc(null);
+        setVideoPath(null);
         if (fileInputRef.current) {
             fileInputRef.current.value = null;
         }
     };
 
-    const handleDeleteVideoClick = () => {
-        setModalType("deleteConfirm");
-        setModalOpen(true);
-    };
-
-    const handleGoAnalysis = () => {
+    const handleGoAnalysis = async () => {
         setModalOpen(true);
         setModalState("loading");
+        console.log(videoPath);
+        try {
+            const response = await axios.post("http://127.0.0.1:5001/analyze", {
+                video_path: videoPath, // 🔥 서버 내부 경로 전달
+            });
 
-        setTimeout(() => {
+            console.log("분석 시작됨:", response.data);
             setModalState("done");
-        }, 3000); // 예시로 3초 후 완료로 변경
+        } catch (error) {
+            console.error("분석 요청 실패:", error.response?.data || error.message);
+            setModalState("idle");
+            setModalOpen(false);
+            setModalType("none");
+        }
     };
+
     return (
         <>
             <S.MainLayout>
@@ -114,7 +164,7 @@ function RenderPage() {
                                 <S.DeleteVideo
                                     src="/image/deleteVideo.png"
                                     alt="영상 삭제"
-                                    onClick={handleDeleteVideoClick}
+                                    onClick={handleDeleteVideo}
                                 />
                             </S.DeleteWrapper>
                         </>

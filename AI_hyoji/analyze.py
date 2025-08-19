@@ -1,8 +1,6 @@
 import os
 import cv2
-import time
 import json
-import math
 import sqlite3
 import numpy as np
 from collections import deque
@@ -36,22 +34,22 @@ THRESHOLD_PATH = "model/best_threshold.txt"
 
 # 디스크 저장 폴더
 ANNOTATED_DIR = "analyzed_videos"      # 주석(박스) 영상
-CLIPS_DIR = "event_clips"              # 비정상 구간 클립 모음 (주석영상에서 추출)
+CLIPS_DIR = "event_clips"              # 비정상 구간 클립 모음 (주석영상에서 즉시 추출, 1패스)
 CLIPS_INFO_DIR = "clip_summaries"      # 클립 메타정보(JSON)
 os.makedirs(ANNOTATED_DIR, exist_ok=True)
 os.makedirs(CLIPS_DIR, exist_ok=True)
 os.makedirs(CLIPS_INFO_DIR, exist_ok=True)
 
-# DB (SQLite) — 최소 payload만 저장
+# DB (SQLite) — payload에 최소 데이터 + 진행률(progress) 포함
 DB_PATH = "jobs.db"
 
 
-# DB 유틸 (최소 필드만 보존)
+# DB 유틸 (최소 필드 + progress)
 def _db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.execute("""
     CREATE TABLE IF NOT EXISTS jobs(
-        job_id TEXT PRIMARY KEY,
+        job_id  TEXT PRIMARY KEY,
         payload TEXT NOT NULL
     )
     """)
@@ -61,6 +59,8 @@ _DB_CONN = _db()
 
 def _sanitize_job_for_db(job: Dict[str, Any]) -> Dict[str, Any]:
     safe: Dict[str, Any] = {"job_id": job.get("job_id")}
+    if "progress" in job and isinstance(job["progress"], (int, float)):
+        safe["progress"] = float(job["progress"])
     res = job.get("results")
     if isinstance(res, dict):
         allowed = {"video_path", "annotated_video", "num_clips", "clips_info_json"}
@@ -127,190 +127,12 @@ def frames_to_tensor_batch(frames_bgr, device):
     x = torch.stack(xt, dim=0)[None].to(device)  # [1,T,3,H,W]
     return x
 
-def _render_annotated_video_inline(video_path: str, detections: list, out_path: str):
-    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        raise RuntimeError(f"Failed to open video: {video_path}")
-    orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps    = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(out_path, fourcc, fps, (orig_w, orig_h))
-    if not writer.isOpened():
-        cap.release()
-        raise RuntimeError(f"Failed to open VideoWriter: {out_path}")
-    sx = orig_w / float(RESIZE_W); sy = orig_h / float(RESIZE_H)
-    det_by_frame = {d["frame_idx"]: d for d in detections}
-    fidx = 0
-    while True:
-        ok, frame = cap.read()
-        if not ok: break
-        det = det_by_frame.get(fidx)
-        if det is not None:
-            is_positive = bool(det.get("is_assault", False)) or (str(det.get("top1_class_name","")).lower() != "normal")
-            if is_positive:
-                toks = det.get("tokens", [])
-                if toks:
-                    box = toks[0].get("box")
-                    if box:
-                        x1,y1,x2,y2 = box
-                        X1 = int(round(x1 * sx)); Y1 = int(round(y1 * sy))
-                        X2 = int(round(x2 * sx)); Y2 = int(round(y2 * sy))
-                        cv2.rectangle(frame, (X1, Y1), (X2, Y2), (0,0,255), 2)
-        writer.write(frame); fidx += 1
-    cap.release(); writer.release()
-    return out_path
-
 def _format_time_hhmmss(seconds: float) -> str:
     if seconds < 0: seconds = 0
     h = int(seconds // 3600)
     m = int((seconds % 3600) // 60)
     s = int(round(seconds % 60))
     return f"{h:02d}:{m:02d}:{s:02d}"
-
-def _find_positive_segments(detections: List[Dict[str, Any]]) -> List[Dict[str, int]]:
-    segs = []
-    in_seg = False
-    seg_start = None
-    seg_class = None
-    for det in detections:
-        fidx = det["frame_idx"]
-        top1 = str(det.get("top1_class_name","")).lower()
-        is_pos = (top1 != "normal") or bool(det.get("is_assault", False))
-        if is_pos and not in_seg:
-            in_seg = True
-            seg_start = fidx
-            seg_class = det.get("top1_class_name", "unknown")
-        elif (not is_pos) and in_seg:
-            segs.append({"start": seg_start, "end": fidx - 1, "class_name": seg_class})
-            in_seg = False
-    if in_seg and len(detections) > 0:
-        segs.append({"start": seg_start, "end": detections[-1]["frame_idx"], "class_name": seg_class})
-    return segs
-
-def _merge_segments_with_tolerance(segs: List[Dict[str,int]], fps: float, tol_sec: float = 2.0) -> List[Dict[str,int]]:
-    if not segs:
-        return []
-    tol_frames = int(math.ceil((fps if fps > 0 else 30.0) * tol_sec))  # 2.0초까지 포함
-    merged = [segs[0].copy()]
-    for s in segs[1:]:
-        prev = merged[-1]
-        same_cls = (str(prev["class_name"]).lower() == str(s["class_name"]).lower())
-        gap = s["start"] - prev["end"] - 1  # 사이 normal 프레임 수
-        if same_cls and gap <= tol_frames:
-            prev["end"] = max(prev["end"], s["end"])
-        else:
-            merged.append(s.copy())
-    return merged
-
-def _first_bbox_on_frame(det: Dict[str, Any]) -> tuple | None:
-    toks = det.get("tokens", [])
-    if not toks:
-        return None
-    return toks[0].get("box")
-
-def _write_clip(video_path: str, start_f: int, end_f: int, out_path: str, fps_hint: float | None = None) -> str:
-    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        raise RuntimeError(f"Failed to open video for clipping: {video_path}")
-    fps = cap.get(cv2.CAP_PROP_FPS) or (fps_hint or 30.0)
-    orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(out_path, fourcc, fps, (orig_w, orig_h))
-    if not writer.isOpened():
-        cap.release()
-        raise RuntimeError(f"Failed to open VideoWriter for clip: {out_path}")
-    cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, start_f))
-    fidx = start_f
-    while fidx <= end_f:
-        ok, frame = cap.read()
-        if not ok: break
-        writer.write(frame)
-        fidx += 1
-    cap.release(); writer.release()
-    return out_path
-
-def _generate_event_clips_and_info(
-    *,
-    video_path_for_meta: str,             # 메타에 기록할 원본 경로(표시용)
-    clip_source_video_path: str,          # 실제로 자를 소스(주석 영상 경로 사용!)
-    detections: List[Dict[str, Any]],
-    resize_w: int,
-    resize_h: int,
-    clips_dir: str,
-    info_dir: str,
-    fps: float
-) -> tuple[list, str]:
-
-    base = os.path.splitext(os.path.basename(video_path_for_meta))[0]
-
-    # 1) 연속 구간 → 2초 이하 normal 간격 병합
-    segs_raw = _find_positive_segments(detections)
-    segs = _merge_segments_with_tolerance(segs_raw, fps=fps, tol_sec=2.0)
-
-    if not segs:
-        info_path = os.path.join(info_dir, f"{base}_clips.json")
-        with open(info_path, "w", encoding="utf-8") as f:
-            json.dump({"video": video_path_for_meta, "num_clips": 0, "clips": []}, f, ensure_ascii=False, indent=2)
-        return [], info_path
-
-    # 2) 프레임->det, 스케일
-    det_map = {d["frame_idx"]: d for d in detections}
-
-    cap = cv2.VideoCapture(video_path_for_meta)
-    if not cap.isOpened():
-        raise RuntimeError(f"Failed to open video for meta: {video_path_for_meta}")
-    orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    cap.release()
-    sx = orig_w / float(resize_w)
-    sy = orig_h / float(resize_h)
-
-    clips_meta = []
-    clip_id = 1
-
-    for seg in segs:
-        s, e = seg["start"], seg["end"]
-        cls_name = seg["class_name"]
-
-        # 시작 프레임 박스 (주석 영상에 이미 그려지지만, 메타에는 원본 좌표로 기록)
-        det0 = det_map.get(s)
-        start_box_resize = _first_bbox_on_frame(det0) if det0 else None
-        if start_box_resize:
-            x1,y1,x2,y2 = start_box_resize
-            start_box_orig = [int(round(x1*sx)), int(round(y1*sy)),
-                              int(round(x2*sx)), int(round(y2*sy))]
-        else:
-            start_box_orig = None
-
-        clip_name = f"{base}_clip{clip_id}.mp4"
-        clip_path = os.path.join(clips_dir, clip_name)
-
-        # ✅ 주석 영상(clip_source_video_path)에서 자르기 → 박스가 출력에 포함됨
-        _write_clip(clip_source_video_path, s, e, clip_path, fps_hint=fps)
-
-        start_time_str = _format_time_hhmmss(s / fps if fps > 0 else 0.0)
-
-        meta = {
-            "clip_id": clip_id,
-            "class_name": cls_name,
-            "start_time": start_time_str,
-            "start_bbox": start_box_orig,
-            "clip_name": clip_name,
-            "clip_path": clip_path
-        }
-        clips_meta.append(meta)
-        clip_id += 1
-
-    info_obj = {"video": video_path_for_meta, "num_clips": len(clips_meta), "clips": clips_meta}
-    info_path = os.path.join(info_dir, f"{base}_clips.json")
-    with open(info_path, "w", encoding="utf-8") as f:
-        json.dump(info_obj, f, ensure_ascii=False, indent=2)
-
-    return clips_meta, info_path
 
 
 # 디바이스/모델 로드
@@ -339,14 +161,17 @@ if os.path.exists(THRESHOLD_PATH):
 
 torch.set_grad_enabled(False)
 
+
 # 작업 상태 (메모리 최소)
 processing_jobs: Dict[str, Dict[str, Any]] = {}
 
-# 핵심: 동기 분석 (비동기 스레드에서 호출)
+
+# 1패스 분석 + 주석영상 스트리밍 + 클립 동시 생성
 def analyze_video_pure(job_id: str, video_path: str):
     try:
-        # 초기 스냅샷 저장
-        db_upsert_job({"job_id": job_id, "results": None})
+        # 초기 DB 스냅샷 (progress 포함)
+        processing_jobs[job_id] = {"job_id": job_id, "progress": 0.0, "results": None}
+        db_upsert_job(processing_jobs[job_id])
 
         threshold = prob_threshold
 
@@ -356,34 +181,94 @@ def analyze_video_pure(job_id: str, video_path: str):
 
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-        assault_mask = np.zeros(max(total_frames, 1), dtype=np.uint8)
+        orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        buf_bgr = deque(maxlen=_args.num_frame)
-        while len(buf_bgr) < _args.num_frame:
-            ok, f = cap.read()
+        # 주석 영상 writer (원본 해상도)
+        base_name = os.path.splitext(os.path.basename(video_path))[0]
+        annotated_path = os.path.join(ANNOTATED_DIR, f"{base_name}_analyze.mp4")
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        annot_writer = cv2.VideoWriter(annotated_path, fourcc, fps, (orig_w, orig_h))
+        if not annot_writer.isOpened():
+            cap.release()
+            raise RuntimeError(f"Failed to open VideoWriter: {annotated_path}")
+
+        # 2초 병합용 tol 프레임 수
+        tol_frames = int(round((fps if fps > 0 else 30.0) * 2.0))
+
+        # 슬라이딩 버퍼 (원본/리사이즈 둘 다)
+        buf_small = deque(maxlen=_args.num_frame)  # 640x360
+        buf_orig  = deque(maxlen=_args.num_frame)  # 원본 해상도
+
+        # 초기 버퍼 채우기
+        while len(buf_small) < _args.num_frame:
+            ok, fr = cap.read()
             if not ok:
                 break
-            f = cv2.resize(f, (RESIZE_W, RESIZE_H), interpolation=cv2.INTER_AREA)
-            buf_bgr.append(f)
+            fr_orig = fr  # 원본 프레임
+            fr_small = cv2.resize(fr_orig, (RESIZE_W, RESIZE_H), interpolation=cv2.INTER_AREA)
+            buf_small.append(fr_small)
+            buf_orig.append(fr_orig)
 
-        # 단일 토큰(1개)만 추적 (fuse 사용)
+        # 토큰 융합 기반 단일 박스 추적용 상태
         prev_pt = None
         hm_ema  = None
 
         frame_base_idx = 0
         p_assault_ema = None
-        win_counter = 0
 
-        detections = []   # 주석/클립 생성용 내부 결과
-        assault_frames = 0
-        processed_frames = 0
+        # 진행률 저장용
+        written_frames = 0
+        last_saved_progress = -1.0  # DB 쓰기 빈도 줄이기
 
-        while len(buf_bgr) == _args.num_frame:
+        # 클립 상태머신 (1패스)
+        clips_meta: List[Dict[str, Any]] = []
+        clip_id = 0
+        active_clip = None           # cv2.VideoWriter | None
+        active_class = None          # 현재 녹화중 클래스명
+        in_gap = False
+        gap_buf = []                 # 주석 프레임 임시 보관 (RAM)
+        start_bbox_orig = None       # 새 클립 시작 bbox(원본 좌표)
+
+        def _open_clip(start_time_sec: float):
+            nonlocal clip_id, active_clip
+            clip_id += 1
+            name = f"{base_name}_clip{clip_id}.mp4"
+            path = os.path.join(CLIPS_DIR, name)
+            active_clip = cv2.VideoWriter(path, fourcc, fps, (orig_w, orig_h))
+            if not active_clip.isOpened():
+                raise RuntimeError(f"Failed to open clip writer: {path}")
+            clips_meta.append({
+                "clip_id": clip_id,
+                "class_name": active_class,
+                "start_time": _format_time_hhmmss(start_time_sec),
+                "start_bbox": start_bbox_orig,          # [x1,y1,x2,y2] or None
+                "clip_name": name,
+                "clip_path": path
+            })
+
+        def _close_clip():
+            nonlocal active_clip, in_gap, gap_buf, start_bbox_orig
+            if active_clip and active_clip.isOpened():
+                active_clip.release()
+            active_clip = None
+            in_gap = False
+            gap_buf.clear()
+            start_bbox_orig = None
+
+        # 어설트 마스크 (창 판정 기반 프레임 마스크)
+        assault_mask = np.zeros(max(total_frames, 1), dtype=np.uint8)
+
+        while len(buf_small) == _args.num_frame:
+            # EMA 초기화 옵션
             if EMA_RESET_EACH_WINDOW:
                 p_assault_ema = None
 
-            frames_list = list(buf_bgr)
-            x_bthwc = frames_to_tensor_batch(frames_list, device)  # [1,T,3,H,W]
+            frames_small = list(buf_small)
+            frames_orig  = list(buf_orig)
+
+            # 모델 입력/추론
+            x_bthwc = frames_to_tensor_batch(frames_small, device)  # [1,T,3,H,W]
             x_btchw = x_bthwc[0]                                    # [T,3,H,W]
 
             logits = model(x_bthwc) / TEMP
@@ -415,12 +300,8 @@ def analyze_video_pure(job_id: str, video_path: str):
             p_assault_ema = p_assault_raw if (p_assault_ema is None or not USE_EMA) \
                 else (1 - EMA_ALPHA_P) * p_assault_ema + EMA_ALPHA_P * p_assault_raw
 
-            # 판정
+            # 창 판정
             is_assault_base = (aid >= 0) and (p_assault_ema >= threshold) and (margin >= MARGIN_THRESH)
-
-            st, ed = frame_base_idx, frame_base_idx + _args.num_frame - 1
-            if is_assault_base and st < len(assault_mask):
-                assault_mask[st: min(ed + 1, len(assault_mask))] = 1
 
             # 백본/어텐션 → 단일 히트맵(fuse)
             src, pos = model.backbone(x_btchw)                      # [T,C,oh,ow], [T,C,oh,ow]
@@ -430,10 +311,16 @@ def analyze_video_pure(job_id: str, video_path: str):
             if att.dim() == 5:
                 att = att[0]
 
+            # 어떤 프레임을 "이번 창에서 실제로 쓸지" (중복 방지)
             write_range = range(T_) if frame_base_idx == 0 else range(T_ - STRIDE, T_)
+
+            # 스케일 팩터 (640x360 → 원본)
+            sx = orig_w / float(RESIZE_W)
+            sy = orig_h / float(RESIZE_H)
 
             for t in range(T_):
                 fidx = frame_base_idx + t
+                # assault_mask 크기 안전
                 if fidx >= len(assault_mask):
                     assault_mask = np.pad(assault_mask, (0, (fidx + 1 - len(assault_mask))), constant_values=0)
 
@@ -453,78 +340,134 @@ def analyze_video_pure(job_id: str, video_path: str):
                 cx, cy = heatmap_to_point(hm_ema, mode='centroid', top_pct=TOP_PCT)
                 prev_pt = smooth_point(prev_pt, (cx, cy), alpha=ALPHA_PT,
                                        jump_max=JUMP_MAX_PIX, jump_blend=JUMP_BLEND)
-                box = calculate_box_coordinates(prev_pt, RESIZE_W, RESIZE_H, BOX_FRAC_W, BOX_FRAC_H)
+                box_small = calculate_box_coordinates(prev_pt, RESIZE_W, RESIZE_H, BOX_FRAC_W, BOX_FRAC_H)
 
-                if t in write_range:
-                    top1_is_normal = (str(top1_name).lower() == "normal")
-                    detections.append({
-                        "frame_idx": fidx,
-                        "timestamp": fidx / fps if fps > 0 else 0.0,
-                        "p_assault_raw": float(p_assault_raw),
-                        "p_assault_ema": float(p_assault_ema),
-                        "margin": float(margin),
-                        "is_assault": bool(assault_mask[fidx]),
-                        "window_assault": is_assault_base,
-                        "top1_class_index": pred_idx,
-                        "top1_class_name": top1_name,
-                        "top1_prob": top1_prob,
-                        # ✅ 단일 박스만 기록
-                        "tokens": [{
-                            "token_id": 0,
-                            "cx": float(prev_pt[0]),
-                            "cy": float(prev_pt[1]),
-                            "box": box
-                        }]
-                    })
+                # 창 판정 결과를 프레임 마스크로 확장
+                st, ed = frame_base_idx, frame_base_idx + _args.num_frame - 1
+                if is_assault_base and st < len(assault_mask):
+                    assault_mask[st: min(ed + 1, len(assault_mask))] = 1
 
-                    if assault_mask[fidx] or (not top1_is_normal):
-                        assault_frames += 1
-                    processed_frames += 1
+                if t not in write_range:
+                    continue  # 이번 창에서 이 프레임은 이미 쓴 적 있음
 
-            # 슬라이드
+                # === 여기서부터 "한 번만" 쓰는 섹션 (주석 + 클립 상태머신) ===
+                # 원본 프레임 꺼내서 박스 그려 주석 프레임 만들기
+                frame_orig = frames_orig[t].copy()
+                # positive 여부: assault 마스크 또는 top-1이 normal이 아님
+                is_positive = bool(assault_mask[fidx]) or (str(top1_name).lower() != "normal")
+
+                if is_positive and box_small:
+                    x1,y1,x2,y2 = box_small
+                    X1 = int(round(x1 * sx)); Y1 = int(round(y1 * sy))
+                    X2 = int(round(x2 * sx)); Y2 = int(round(y2 * sy))
+                    cv2.rectangle(frame_orig, (X1, Y1), (X2, Y2), (0,0,255), 2)
+                    box_orig = [X1, Y1, X2, Y2]
+                else:
+                    box_orig = None
+
+                # (A) 주석 영상에 바로 write
+                annot_writer.write(frame_orig)
+                written_frames += 1
+
+                # (B) 클립 상태머신 (2초 병합 유지)
+                cls_name = top1_name
+                if is_positive:
+                    if active_clip is None:
+                        # 새 클립 시작
+                        active_class = cls_name
+                        start_bbox_orig = box_orig
+                        _open_clip(start_time_sec=(fidx / fps if fps > 0 else 0.0))
+                        active_clip.write(frame_orig)
+                    else:
+                        if in_gap:
+                            # 같은 클래스 복귀 + gap ≤ tol → 버퍼 flush + 이어쓰기
+                            if cls_name.lower() == active_class.lower() and len(gap_buf) <= tol_frames:
+                                for fr in gap_buf: active_clip.write(fr)
+                                gap_buf.clear()
+                                in_gap = False
+                                active_clip.write(frame_orig)
+                            else:
+                                # 다른 클래스 or tol 초과 → 이전 종료 후 새로
+                                _close_clip()
+                                active_class = cls_name
+                                start_bbox_orig = box_orig
+                                _open_clip(start_time_sec=(fidx / fps if fps > 0 else 0.0))
+                                active_clip.write(frame_orig)
+                        else:
+                            # 녹화 중 같은 클래스면 그대로
+                            if cls_name.lower() == active_class.lower():
+                                active_clip.write(frame_orig)
+                            else:
+                                # 클래스 변경 → 이전 종료, 새로 시작
+                                _close_clip()
+                                active_class = cls_name
+                                start_bbox_orig = box_orig
+                                _open_clip(start_time_sec=(fidx / fps if fps > 0 else 0.0))
+                                active_clip.write(frame_orig)
+                else:
+                    if active_clip is not None:
+                        # gap 진입/유지
+                        if not in_gap:
+                            in_gap = True
+                            gap_buf = [frame_orig]
+                        else:
+                            gap_buf.append(frame_orig)
+                            if len(gap_buf) > tol_frames:
+                                # 2초 초과 → 이전 클립 종료, 버퍼 폐기
+                                _close_clip()
+
+                # (C) 진행률 저장 (DB write 빈도 줄여서 업데이트)
+                if total_frames > 0:
+                    progress = min(99.0, (written_frames / total_frames) * 100.0)
+                else:
+                    progress = 0.0
+                # 1% 이상 변할 때만 저장
+                if progress - last_saved_progress >= 1.0:
+                    processing_jobs[job_id]["progress"] = float(progress)
+                    db_upsert_job(processing_jobs[job_id])
+                    last_saved_progress = progress
+
+            # 다음 창으로 슬라이드
             advanced = 0
             for _ in range(STRIDE):
-                ok, f = cap.read()
+                ok, fr = cap.read()
                 if not ok: break
-                f = cv2.resize(f, (RESIZE_W, RESIZE_H), interpolation=cv2.INTER_AREA)
-                buf_bgr.append(f); advanced += 1
+                fr_orig = fr
+                fr_small = cv2.resize(fr_orig, (RESIZE_W, RESIZE_H), interpolation=cv2.INTER_AREA)
+                buf_small.append(fr_small)
+                buf_orig.append(fr_orig)
+                advanced += 1
             frame_base_idx += STRIDE
-            if advanced < STRIDE: break
+            if advanced < STRIDE:
+                break
 
-            win_counter += 1
-            if win_counter % 10 == 0:
-                time.sleep(0.001)
+        # 스트림 종료 → gap flush(≤2초면 붙여쓰기) 후 클립 닫기
+        if active_clip is not None:
+            if in_gap and len(gap_buf) <= tol_frames:
+                for fr in gap_buf: active_clip.write(fr)
+            _close_clip()
 
+        # writer/캡쳐 정리
+        annot_writer.release()
         cap.release()
 
-        # (A) 주석 영상 생성 (단일 박스)
-        base_name = os.path.splitext(os.path.basename(video_path))[0]
-        annotated_path = os.path.join(ANNOTATED_DIR, f"{base_name}_analyze.mp4")
-        _render_annotated_video_inline(video_path, detections, annotated_path)
+        # (마무리) 클립 메타 JSON 저장
+        info_path = os.path.join(CLIPS_INFO_DIR, f"{base_name}_clips.json")
+        with open(info_path, "w", encoding="utf-8") as f:
+            json.dump({"video": video_path, "num_clips": len(clips_meta), "clips": clips_meta},
+                      f, ensure_ascii=False, indent=2)
 
-        # (B) 주석 영상에서 클립 생성 + 메타 JSON 저장 (2초 이내 동일 클래스 병합)
-        clips_meta, clips_info_path = _generate_event_clips_and_info(
-            video_path_for_meta=video_path,
-            clip_source_video_path=annotated_path,  # ✅ 박스가 그려진 영상에서 추출
-            detections=detections,
-            resize_w=RESIZE_W,
-            resize_h=RESIZE_H,
-            clips_dir=CLIPS_DIR,
-            info_dir=CLIPS_INFO_DIR,
-            fps=fps
-        )
-
-        # (C) DB/응답 결과(최소)
+        # 최종 결과 저장 (progress=100)
         result = {
             "video_path": video_path,
             "annotated_video": annotated_path,
             "num_clips": len(clips_meta),
-            "clips_info_json": clips_info_path
+            "clips_info_json": info_path
         }
-
-        processing_jobs[job_id] = {"job_id": job_id, "results": result}
+        processing_jobs[job_id] = {"job_id": job_id, "progress": 100.0, "results": result}
         db_upsert_job(processing_jobs[job_id])
 
     except Exception:
-        processing_jobs[job_id] = {"job_id": job_id, "results": None}
+        # 실패 시에도 progress 포함해 저장
+        processing_jobs[job_id] = {"job_id": job_id, "progress": 0.0, "results": None}
         db_upsert_job(processing_jobs[job_id])

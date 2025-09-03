@@ -1,6 +1,6 @@
-Metadata-Version: 2.1
-Name: spatial-correlation-sampler
-Version: 0.5.0-cpu
+Metadata-Version: 2.4
+Name: spatial_correlation_sampler
+Version: 0.5.0+cpu
 Summary: Correlation module for PyTorch (CPU-only)
 Home-page: https://github.com/ClementPinard/Pytorch-Correlation-extension
 Author: Clément Pinard
@@ -11,6 +11,16 @@ Classifier: Operating System :: Microsoft :: Windows
 Classifier: Intended Audience :: Science/Research
 Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
 Description-Content-Type: text/markdown
+Requires-Dist: torch>=1.1
+Requires-Dist: numpy
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: summary
 
 # 🎥 이상행동 API
 

@@ -19,7 +19,7 @@ sources = [join(project_root, file) for file in source_files]
 
 setup(
     name="spatial_correlation_sampler",
-    version="0.5.0-cpu",
+    version="0.5.0+cpu",
     author="Clément Pinard",
     author_email="mail@clementpinard.fr",
     description="Correlation module for PyTorch (CPU-only)",

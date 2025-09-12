@@ -9,6 +9,63 @@ import * as D from "../../component/CustomModal/CustomModal.style";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import axios from "axios";
 
+// ✅ 파일 맨 위(컴포넌트 밖)에 추가
+function ProgressCircle({
+    value,
+    size = 120,
+    strokeWidth = 12,
+    trackColor = "#E5E7EB",
+    progressColor = "#3B82F6",
+    textColor = "#111827",
+}) {
+    const pct = Math.max(0, Math.min(100, value ?? 0));
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const dashOffset = circumference * (1 - pct / 100);
+
+    return (
+        <div style={{ position: "relative", width: size, height: size }}>
+            <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+                <circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    fill="none"
+                    stroke={trackColor}
+                    strokeWidth={strokeWidth}
+                    strokeLinecap="round"
+                />
+                <circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    fill="none"
+                    stroke={progressColor}
+                    strokeWidth={strokeWidth}
+                    strokeLinecap="round"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={dashOffset}
+                    style={{ transition: "stroke-dashoffset 0.3s ease" }}
+                />
+            </svg>
+            <div
+                style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 700,
+                    fontSize: 18,
+                    color: textColor,
+                }}
+            >
+                {Math.round(pct)}%
+            </div>
+        </div>
+    );
+}
+
 function RenderPage() {
     const fileInputRef = useRef(null);
     const [videoSrc, setVideoSrc] = useState(null);
@@ -16,6 +73,17 @@ function RenderPage() {
     const [modalState, setModalState] = useState("idle");
     const [modalType, setModalType] = useState("none");
     const [videoPath, setVideoPath] = useState(null);
+    const [progress, setProgress] = useState(0);
+    const [jobId, setJobId] = useState(null);
+    const intervalRef = useRef(null);
+
+    // 폴링 정리 공용 함수
+    const stopPolling = () => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+        }
+    };
 
     const navigate = useNavigate();
 
@@ -126,21 +194,67 @@ function RenderPage() {
     };
 
     const handleGoAnalysis = async () => {
-        setModalOpen(true);
-        setModalState("loading");
-        console.log(videoPath);
-        try {
-            const response = await axios.post("http://127.0.0.1:5001/analyze", {
-                video_path: videoPath, // 🔥 서버 내부 경로 전달
-            });
+        if (!videoPath) {
+            console.error("❌ 서버 저장 경로(videoPath)가 없습니다.");
+            return;
+        }
 
-            console.log("분석 시작됨:", response.data);
-            setModalState("done");
-        } catch (error) {
-            console.error("분석 요청 실패:", error.response?.data || error.message);
-            setModalState("idle");
+        // 모달 열고 로딩 상태 세팅
+        setModalOpen(true);
+        setModalType("none");
+        setModalState("loading");
+        setProgress(0);
+
+        // 혹시 살아있는 폴링이 있으면 정리
+        stopPolling();
+
+        try {
+            // 1) 분석 요청
+            const res = await axios.post(
+                "http://127.0.0.1:5001/analyze",
+                { video_path: videoPath },
+                { headers: { "Content-Type": "application/json" } }
+            );
+
+            const newJobId = res.data?.job_id;
+            if (!newJobId) {
+                throw new Error("job_id가 응답에 없습니다.");
+            }
+            setJobId(newJobId);
+            localStorage.setItem("jobId", newJobId);
+            console.log(res.data);
+            // 2) 진행률 폴링
+            intervalRef.current = setInterval(async () => {
+                try {
+                    const jobRes = await axios.get(`http://127.0.0.1:5001/jobs/${newJobId}`, {
+                        // 캐시 방지용 타임스탬프
+                        params: { t: Date.now() },
+                        headers: { "Cache-Control": "no-cache" },
+                    });
+
+                    // 백엔드가 0~1 스케일이면 100배, 이미 0~100이면 그대로
+                    const raw = jobRes.data?.progress ?? 0;
+                    const pct = Math.max(0, Math.min(100, raw > 1 ? raw : raw * 100));
+                    setProgress(pct);
+
+                    if (pct >= 100) {
+                        stopPolling();
+                        setModalState("done");
+                        // 필요하면 자동 닫기 / 페이지 이동 등 추가
+                        // setTimeout(() => { setModalOpen(false); navigate("/List"); }, 800);
+                    }
+                    console.log(jobRes.data);
+                } catch (pollErr) {
+                    console.error("진행률 조회 실패:", pollErr.response?.data || pollErr.message);
+                    stopPolling();
+                    setModalOpen(false);
+                    setModalState("idle");
+                }
+            }, 1500); // 1.5초 간격
+        } catch (err) {
+            console.error("분석 요청 실패:", err.response?.data || err.message);
             setModalOpen(false);
-            setModalType("none");
+            setModalState("idle");
         }
     };
 
@@ -181,6 +295,7 @@ function RenderPage() {
             <CustomModal
                 open={modalOpen}
                 onClose={() => {
+                    stopPolling();
                     setModalOpen(false);
                     setModalState("idle");
                     setModalType("none");
@@ -202,10 +317,14 @@ function RenderPage() {
                 icon={
                     modalType === "deleteConfirm" ? (
                         <WarningAmberRoundedIcon style={{ fontSize: 60, color: "#6E6E6E" }} />
+                    ) : modalState === "loading" ? (
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                            <ProgressCircle value={progress} size={120} strokeWidth={12} />
+                            <div style={{ fontSize: 14, color: "#6B7280" }}>처리 중... {progress}%</div>
+                        </div>
                     ) : (
                         <D.SpinnerWrapper>
-                            <D.Spinner visible={modalState === "loading"} />
-                            <D.CheckIcon visible={modalState === "done"} />
+                            <D.CheckIcon visible={true} />
                         </D.SpinnerWrapper>
                     )
                 }
@@ -215,7 +334,9 @@ function RenderPage() {
                               {
                                   label: "취소",
                                   onClick: () => {
+                                      stopPolling();
                                       setModalOpen(false);
+                                      setModalState("idle");
                                       setModalType("none");
                                   },
                               },
@@ -233,6 +354,7 @@ function RenderPage() {
                               {
                                   label: "취소",
                                   onClick: () => {
+                                      stopPolling();
                                       setModalOpen(false);
                                       setModalState("idle");
                                   },

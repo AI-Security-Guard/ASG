@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     ListContainer,
     UnconfirmedCountMessage,
@@ -20,26 +20,38 @@ import { useNavigate } from "react-router-dom";
 
 function ListPage() {
     const navigate = useNavigate();
-
-    const entries = [
-        { date: "2025/05/07", message: "폭행", checked: true },
-        { date: "2025/05/05", message: "데이트폭력", checked: true },
-        { date: "2025/05/06", message: "도난", checked: false },
-        { date: "2025/05/07", message: "폭행", checked: true },
-        { date: "2025/05/08", message: "사고", checked: false },
-        { date: "2025/05/09", message: "기물파손", checked: false },
-        { date: "2025/05/10", message: "침입", checked: false },
-        { date: "2025/05/11", message: "폭행", checked: true },
-        { date: "2025/05/12", message: "투기", checked: true },
-        { date: "2025/05/08", message: "사고", checked: false },
-        { date: "2025/05/09", message: "기물파손", checked: false },
-        { date: "2025/05/10", message: "침입", checked: false },
-        { date: "2025/05/11", message: "폭행", checked: true },
-        { date: "2025/05/12", message: "투기", checked: true },
-    ];
+    const [entries, setEntries] = useState([]);
+    const [jobId, setJobId] = useState(() => localStorage.getItem("jobId")); // ✅
 
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 8;
+    const jobId1 = "d57abdec-8dcb-4bd7-a282-12f1a8a8f9a7";
+    const API_BASE = "http://127.0.0.1:5001";
+
+    useEffect(() => {
+        fetch(`${API_BASE}/jobs/${jobId}`)
+            .then((r) => r.json())
+            .then((data) => {
+                console.log("jobs payload:", data);
+
+                const clips = data?.results?.clips_info?.clips || [];
+                console.log("clips:", clips);
+
+                // ✅ Detail에서 쓸 모든 필드를 entries에 저장
+                const mapped = clips.map((c, i) => ({
+                    id: c.clip_id ?? i,
+                    date: c.start_time,
+                    message: c.class_name === "assault" ? "폭행" : c.class_name,
+                    checked: false,
+                    clipPath: c.clip_path ? c.clip_path.replace(/\\/g, "/") : "",
+                    thumbPath: c.thumb_path,
+                    start_bbox: c.start_bbox, // ✅ bbox 추가
+                }));
+
+                setEntries(mapped);
+            })
+            .catch((e) => console.error(e));
+    }, [jobId]);
 
     const handlePageChange = (event, page) => {
         setCurrentPage(page);
@@ -51,6 +63,10 @@ function ListPage() {
     const currentEntries = sortedEntries.slice(indexOfFirstEntry, indexOfLastEntry);
     const unconfirmedCount = entries.filter((entry) => !entry.checked).length;
 
+    const handleClick = (entry) => {
+        navigate("/Detail", { state: entry });
+    };
+
     return (
         <>
             <ListContainer>
@@ -60,11 +76,17 @@ function ListPage() {
                     <UnconfirmedCountMessage>
                         확인하지 않은 거동 수상자 목록이 {unconfirmedCount}개 있습니다.
                     </UnconfirmedCountMessage>
+
                     <SuspectContainer>
                         <SuspectColumn>
-                            {currentEntries.slice(0, 4).map((entry, index) => (
-                                <SuspectEntry key={index} onClick={() => navigate("/Detail")}>
-                                    <SuspectPoto src="/image/poto.png" alt="임시 이미지" />
+                            {currentEntries.slice(0, 4).map((entry) => (
+                                <SuspectEntry key={entry.id} onClick={() => handleClick(entry)}>
+                                    {/* 썸네일이 있으면 썸네일, 없으면 임시 이미지 */}
+                                    <SuspectPoto
+                                        as="img"
+                                        src={entry.thumbPath ? `${API_BASE}${entry.thumbPath}` : "/image/poto.png"}
+                                        alt="썸네일"
+                                    />
                                     <SuspectDetail>
                                         <IncidentInfo>
                                             <Date>{entry.date}</Date>
@@ -78,10 +100,15 @@ function ListPage() {
                                 </SuspectEntry>
                             ))}
                         </SuspectColumn>
+
                         <SuspectColumn>
-                            {currentEntries.slice(4, 8).map((entry, index) => (
-                                <SuspectEntry key={index} onClick={() => navigate("/Detail")}>
-                                    <SuspectPoto src="/image/poto.png" alt="임시 이미지" />
+                            {currentEntries.slice(4, 8).map((entry) => (
+                                <SuspectEntry key={entry.id} onClick={() => handleClick(entry)}>
+                                    <SuspectPoto
+                                        as="img"
+                                        src={entry.thumbPath ? `${API_BASE}${entry.thumbPath}` : "/image/poto.png"}
+                                        alt="썸네일"
+                                    />
                                     <SuspectDetail>
                                         <IncidentInfo>
                                             <Date>{entry.date}</Date>
@@ -96,6 +123,7 @@ function ListPage() {
                             ))}
                         </SuspectColumn>
                     </SuspectContainer>
+
                     <ListPagination
                         count={Math.ceil(sortedEntries.length / itemsPerPage)}
                         page={currentPage}

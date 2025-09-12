@@ -5,3 +5,27 @@ server/uploaded_videos/
 *.pyc
 
 aivenv*.mp4
+
+# Python
+__pycache__/
+*.py[cod]
+*.log
+
+# virtual envs
+venv/
+.venv/
+env/
+aivenv/
+AI_hyoji/aivenv/
+
+# build / artifacts / big files
+*.mp4
+*.avi
+*.mkv
+*.dll
+*.lib
+*.pth
+*.pt
+*.onnx
+uploaded_videos/
+AI_hyoji/analyzed_videos/

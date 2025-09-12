@@ -4,4 +4,4 @@
 server/uploaded_videos/
 *.pyc
 
-aivenv
+aivenv*.mp4

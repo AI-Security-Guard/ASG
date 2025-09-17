@@ -9,7 +9,6 @@ import * as D from "../../component/CustomModal/CustomModal.style";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import axios from "axios";
 
-// ✅ 파일 맨 위(컴포넌트 밖)에 추가
 function ProgressCircle({
     value,
     size = 120,
@@ -77,7 +76,6 @@ function RenderPage() {
     const [jobId, setJobId] = useState(null);
     const intervalRef = useRef(null);
 
-    // 폴링 정리 공용 함수
     const stopPolling = () => {
         if (intervalRef.current) {
             clearInterval(intervalRef.current);

@@ -25,20 +25,20 @@ jwt = JWTManager(app)
 
 # 토큰이 아예 없을 때
 @jwt.unauthorized_loader
-def unauthorized_callback():
-    return jsonify({"error": "토큰이 없습니다."}), 401
+def unauthorized_callback(callback):
+    return jsonify({"error": "Access token required"}), 401
 
 
 # 토큰이 잘못됐을 때
 @jwt.invalid_token_loader
-def invalid_token_callback():
-    return jsonify({"error": "토큰이 잘못 됐습니다."}), 401
+def invalid_token_callback(reason):
+    return jsonify({"error": f"Invalid token: {reason}"}), 401
 
 
 # 토큰이 만료됐을 때
 @jwt.expired_token_loader
-def expired_token_callback():
-    return jsonify({"error": "토큰이 만료 되었습니다."}), 401
+def expired_token_callback(jwt_header, jwt_payload):
+    return jsonify({"error": "Token has expired"}), 401
 
 
 # DB 초기화

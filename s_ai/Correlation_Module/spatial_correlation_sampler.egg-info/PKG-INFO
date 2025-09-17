@@ -1,0 +1,231 @@
+Metadata-Version: 2.4
+Name: spatial_correlation_sampler
+Version: 0.5.0+cpu
+Summary: Correlation module for PyTorch (CPU-only)
+Home-page: https://github.com/ClementPinard/Pytorch-Correlation-extension
+Author: Clément Pinard
+Author-email: mail@clementpinard.fr
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Description-Content-Type: text/markdown
+Requires-Dist: torch>=1.1
+Requires-Dist: numpy
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: summary
+
+# 🎥 이상행동 API
+
+업로드된 영상을 분석하여 폭행 구간을 자동 감지하는 AI  모델입니다. Flask 기반 API로 구성되어 있으며, DFWSGAR 모델을 사용합니다.
+
+---
+## 📁 폴더 구조
+* `GPU / CPU` 설정은 `analyze.py` 139번째 줄에서 바꾸면 됩니다.
+```
+AI_hyoji/
+├── app.py                    # Flask 서버 진입점
+├── analyze.py                # 추론/분석 엔진
+├── routes.py                 # API 라우팅
+├── utils/
+│   ├── utils.py              # 시각화/후처리 유틸
+├── model/
+│   └── best_model.pth        # 학습된 PyTorch 모델 가중치
+│   └── best_threshold.txt    # assault 판정 확률 임계값(다중 클래스 시 추가 예정)
+├── models/                   # 논문 참고한 DFWSGAR모델 정의
+├── analyzed_videos/          # 분석된 영상 폴더(실행 시 디스크에 자동 생성)
+├── clip_summaries/           # 분석된 이상행동 클립 정보 폴더(실행 시 디스크에 자동 생성)
+├── event_clips/              # 분석된 이상행동 클립 폴더(실행 시 디스크에 자동 생성)
+├── jobs.db                   # SQLite DB, 결과 내용을 저장하는 DB
+└── requirements.txt          # python 버전과 라이브러리 버전
+```
+
+---
+
+## 🚀 실행 방법
+
+### 서버 실행
+```
+bash
+
+python app.py
+```
+
+---
+## 🧪 API 사용법
+
+
+### 1. `/analyze` - 분석 실행
+- `POST /analyze`로 JSON 데이터를 보내면 분석이 실행됩니다.
+
+```
+POST /analyze
+Content-Type: application/json
+
+{
+  "video_path": "uploads/sample.mp4"
+}
+```
+<br>
+
+#### 응답 예시
+* job_id는 모델 실행 시 부여되는 '고유 id' 입니다.
+```
+json
+
+{
+  "job_id": "e7034efc-1b24-4288-b7f2-37118b8123f6"
+}
+```
+<br><br>
+
+### 2. `/jobs/<job_id>` - 결과 조회
+- `GET /jobs/<job_id>`로 job_id를 입력하여 DB에 저장한 결과를 가져올 수 있습니다.
+
+```
+GET /jobs/<job_id>
+
+curl 서버주소/jobs/e7034efc-1b24-4288-b7f2-37118b8123f6(job_id)
+```
+<br>
+
+### 응답 예시
+##### 1) 분석 진행 중
+```
+json
+
+{
+  "job_id": "e7034efc-1b24-4288-b7f2-37118b8123f6",
+  "progress":40.0323877839365285, # 40% 진행중
+  "results": null
+}
+```
+<br>
+
+##### 2) 분석 완료
+```
+json
+
+{
+  "job_id": "e7034efc-1b24-4288-b7f2-37118b8123f6",
+  "results": {
+    "video_path": "uploads/sample.mp4",
+    "annotated_video": "analyzed_videos/sample_analyze.mp4",
+    "num_clips": 3,
+    "clips_info_json": "clip_summaries/sample_clips.json"
+  }
+}
+```
+| 필드명             | 타입    | 설명                                      |
+|--------------------|---------|-----------------------------------------|
+| `video_path`       | string  | 분석에 사용된 원본 영상 경로                        |
+| `annotated_video`  | string  | 분석된 영상 경로 (영상명 : `원본이름 + _analyze.mp4`) |
+| `num_clips`        | integer | 생성된 이상행동 클립 개수                          |
+| `clips_info_json`  | string  | 이상행동 클립 메타정보 JSON 파일 경로                 |
+
+
+---
+## 🎬 clip_summaries 
+* 이상행동 클립에 대한 정보 `JSON파일`이 저장됩니다.
+* JSON파일명은 `원본영상명 + _clip` 입니다.
+```
+JSON 파일 내용
+{
+  "video": "uploads/sample.mp4",
+  "num_clips": 3,
+  "clips": [
+    {
+      "clip_id": 1,
+      "class_name": "assault",
+      "start_time": "00:00:12",
+      "start_bbox": [312, 118, 470, 236],
+      "clip_name": "sample_clip1.mp4",
+      "clip_path": "event_clips/sample_clip1.mp4"
+    }
+  ]
+}
+```
+| 필드명        | 타입             | 설명                                    |
+|---------------|------------------|---------------------------------------|
+| `clip_id`     | integer          | 클립 고유 번호(1부터 증가)                      |
+| `class_name`  | string           | 이상행동 클래스(예: `assault`)                |
+| `start_time`  | string           | 이상행동 시작 시각(HH:MM:SS, 원본 영상 기준)        |
+| `start_bbox`  | array \| null    | 시작 프레임 박스 `[x1,y1,x2,y2]` (원본 해상도 좌표) |
+| `clip_name`   | string           | 클립명(예: `<원본>_clip1.mp4`(1부터 증가))      |
+| `clip_path`   | string           | 클립 파일 경로                              |
+
+---
+## 📦 DB 테이블 정의
+
+### 테이블: `jobs`
+| 컬럼명     | 타입 | PK | NULL 허용 | 설명                                |
+|-----------|------|----|-----------|-------------------------------------|
+| `job_id`  | TEXT | ✅ | ❌        | 작업 식별자(UUID)                   |
+| `payload` | TEXT | ❌ | ❌        | 최소 결과 JSON 문자열(UTF-8 저장)   |
+
+<br>
+
+### 스키마(SQL)
+```sql
+CREATE TABLE IF NOT EXISTS jobs(
+  job_id  TEXT PRIMARY KEY,
+  payload TEXT NOT NULL
+);
+```
+<br>
+
+### `payload` JSON 구조
+
+#### 최상위
+| 필드명     | 타입             | 설명                               |
+|------------|------------------|------------------------------------|
+| `job_id`   | string           | 작업 식별자(UUID)                  |
+| `results`  | object \| null   | 완료 시 객체, 진행 중이면 `null`   |
+
+<br>
+
+#### `results` 객체 (완료 시)
+| 필드명             | 타입    | 설명                      |
+|--------------------|---------|-------------------------|
+| `video_path`       | string  | 분석에 사용된 원본 영상 경로        |
+| `annotated_video`  | string  | 분석된 영상 경로               |
+| `num_clips`        | integer | 생성된 이상행동 클립 개수          |
+| `clips_info_json`  | string  | 이상행동 클립 메타정보 JSON 파일 경로 |
+
+<br>
+
+### 예시 레코드 (요약)
+| job_id (예시)                         | payload 요약 |
+|--------------------------------------|--------------|
+| `e7034efc-1b24-4288-b7f2-37118b8123f6` | <code>{"job_id":"id 생략","results":null}</code> |
+| `e9012b42-4d2f-47b8-bfd8-5f9d1274074a` | <code>{"job_id":"id 생략","results":{"video_path":"uploads/sample.mp4",<br>"annotated_video":"analyzed_videos/sample_analyze.mp4","num_clips":3,<br>"clips_info_json":"clip_summaries/sample_clips.json"}}</code> |
+
+
+---
+## 🛠 기타 참고 사항
+
+- 영상 분석은 평균 7~10분 내외 소요됩니다. (FHD 5분 영상 기준)
+- 컴퓨터 사양(서버)에 따라서 더 짧거나 길어질 수 있습니다.
+
+---
+
+## 📄 requirements.txt
+- python 버전도 상단에 추가된 상태입니다.
+- 가상환경에 있는 라이브러리 다 들어가있어서 필요없는 라이브러리도 섞여있습니다.
+- spatial_correlation_sampler 라이브러리는 제외되어있어 필요시 갠톡주세요.
+```
+bash
+
+pip install requirements.txt
+```
+
+
+
+

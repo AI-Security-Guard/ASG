@@ -20,10 +20,7 @@ def login():
     # 사용자가 존재하고 비밀번호가 일치할 경우
     if user and user.password == password:
         access_token = create_access_token(
-            identity=user.id,
-            additional_claims={
-                "username": user.username,
-            },
+            identity=user.username,
         )
         return (
             jsonify(

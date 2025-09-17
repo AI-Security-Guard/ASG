@@ -90,10 +90,12 @@ function RenderPage() {
         const username = user?.username;
 
         const fetchSavedVideo = async () => {
+            const token = localStorage.getItem("access_token");
             try {
                 const response = await axios.get("http://127.0.0.1:5000/bringVideo", {
                     params: { username },
                     responseType: "blob",
+                    headers: { Authorization: `Bearer ${token}` },
                 });
 
                 const contentType = response.headers["content-type"];
@@ -131,9 +133,7 @@ function RenderPage() {
             const token = localStorage.getItem("access_token");
             try {
                 const response = await axios.post("http://127.0.0.1:5000/uploadVideo", formData, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
+                    headers: { Authorization: `Bearer ${token}` },
                 });
                 console.log("업로드 성공:", response.data);
                 setVideoPath(response.data.user.full_path);
@@ -151,13 +151,11 @@ function RenderPage() {
             console.error("❌ username 없음");
             return;
         }
-
+        const token = localStorage.getItem("access_token");
         try {
             await axios.delete("http://127.0.0.1:5000/deleteVideo", {
                 data: { username },
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { Authorization: `Bearer ${token}` },
             });
             console.log("✅ 영상 삭제 성공");
         } catch (err) {

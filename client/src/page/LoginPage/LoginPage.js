@@ -43,6 +43,7 @@ function LoginPage() {
                     <Input label="아이디" variant="outlined" value={id} onChange={(e) => setId(e.target.value)} />
                     <Input
                         label="비밀번호"
+                        type="password"
                         variant="outlined"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}

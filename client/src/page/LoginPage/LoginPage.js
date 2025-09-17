@@ -25,8 +25,9 @@ function LoginPage() {
                 username: id,
                 password: password,
             });
-            const user = response.data.user;
-            localStorage.setItem("user", JSON.stringify(user));
+
+            localStorage.setItem("user", JSON.stringify(response.data.user));
+            localStorage.setItem("access_token", JSON.stringify(response.data.access_token));
             navigate("/render");
         } catch (error) {
             setModalOpen(true);

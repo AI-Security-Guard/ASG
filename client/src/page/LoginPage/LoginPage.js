@@ -29,6 +29,7 @@ function LoginPage() {
             localStorage.setItem("user", JSON.stringify(response.data.user));
             localStorage.setItem("access_token", JSON.stringify(response.data.access_token));
             navigate("/render");
+            console.log(response.data);
         } catch (error) {
             setModalOpen(true);
         }

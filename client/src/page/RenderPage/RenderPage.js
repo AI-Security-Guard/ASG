@@ -126,44 +126,23 @@ function RenderPage() {
             const videoURL = URL.createObjectURL(file);
             setVideoSrc(videoURL);
 
-            const user = JSON.parse(localStorage.getItem("user"));
-            const username = user?.username;
             const formData = new FormData();
-            formData.append("username", username);
             formData.append("video", file);
-
+            const token = localStorage.getItem("access_token");
             try {
-                const response = await axios.post("http://127.0.0.1:5000/uploadVideo", formData);
+                const response = await axios.post("http://127.0.0.1:5000/uploadVideo", formData, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
                 console.log("업로드 성공:", response.data);
-                setVideoPath(response.data.user.full_path); // ✅ 서버 저장 경로 추출
+                setVideoPath(response.data.user.full_path);
             } catch (err) {
                 console.error("업로드 실패:", err.response?.data || err.message);
             }
         }
     };
 
-    // const handleDeleteVideo = () => {
-    //     setVideoSrc(null);
-    //     if (fileInputRef.current) {
-    //         fileInputRef.current.value = null;
-    //     }
-    // };
-
-    // const handleDeleteVideoClick = () => {
-    //     setModalType("deleteConfirm");
-    //     setModalOpen(true);
-    // };
-
-    //주석 추가
-
-    // const handleGoAnalysis = () => {
-    //     setModalOpen(true);
-    //     setModalState("loading");
-
-    //     setTimeout(() => {
-    //         setModalState("done");
-    //     }, 3000); // 예시로 3초 후 완료로 변경
-    // };
     const handleDeleteVideo = async () => {
         const user = JSON.parse(localStorage.getItem("user"));
         const username = user?.username;

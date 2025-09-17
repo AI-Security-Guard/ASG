@@ -17,6 +17,16 @@ function Header() {
     const [isLogin, setIsLogin] = useState(false);
     const [id, setId] = useState("");
 
+    useEffect(() => {
+        const user = JSON.parse(localStorage.getItem("user"));
+        const token = localStorage.getItem("access_token");
+
+        if (user && token) {
+            setIsLogin(true);
+            setId(user.username);
+        }
+    }, []);
+
     const handleLogout = () => {
         localStorage.removeItem("user");
         localStorage.removeItem("access_token");

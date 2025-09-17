@@ -1,5 +1,5 @@
 from datetime import timedelta
-from flask import Flask
+from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from models import db
 from auth import register_auth_blueprints
@@ -21,6 +21,25 @@ app.config["JWT_SECRET_KEY"] = "CHANGE_THIS_TO_ENV_SECRET"  # 👉 환경변수�
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=30)
 
 jwt = JWTManager(app)
+
+
+# 토큰이 아예 없을 때
+@jwt.unauthorized_loader
+def unauthorized_callback():
+    return jsonify({"error": "토큰이 없습니다."}), 401
+
+
+# 토큰이 잘못됐을 때
+@jwt.invalid_token_loader
+def invalid_token_callback():
+    return jsonify({"error": "토큰이 잘못 됐습니다."}), 401
+
+
+# 토큰이 만료됐을 때
+@jwt.expired_token_loader
+def expired_token_callback():
+    return jsonify({"error": "토큰이 만료 되었습니다."}), 401
+
 
 # DB 초기화
 db.init_app(app)

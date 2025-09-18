@@ -170,6 +170,71 @@ function RenderPage() {
         }
     };
 
+    // const handleGoAnalysis = async () => {
+    //     if (!videoPath) {
+    //         console.error("❌ 서버 저장 경로(videoPath)가 없습니다.");
+    //         return;
+    //     }
+
+    //     // 모달 열고 로딩 상태 세팅
+    //     setModalOpen(true);
+    //     setModalType("none");
+    //     setModalState("loading");
+    //     setProgress(0);
+
+    //     // 혹시 살아있는 폴링이 있으면 정리
+    //     stopPolling();
+
+    //     try {
+    //         // 1) 분석 요청
+    //         const res = await axios.post(
+    //             "http://127.0.0.1:5001/analyze",
+    //             { video_path: videoPath },
+    //             { headers: { "Content-Type": "application/json" } }
+    //         );
+
+    //         const newJobId = res.data?.job_id;
+    //         if (!newJobId) {
+    //             throw new Error("job_id가 응답에 없습니다.");
+    //         }
+    //         setJobId(newJobId);
+    //         localStorage.setItem("jobId", newJobId);
+    //         console.log(res.data);
+    //         // 2) 진행률 폴링
+    //         intervalRef.current = setInterval(async () => {
+    //             try {
+    //                 const jobRes = await axios.get(`http://127.0.0.1:5001/jobs/${newJobId}`, {
+    //                     // 캐시 방지용 타임스탬프
+    //                     params: { t: Date.now() },
+    //                     // headers: { "Cache-Control": "no-cache" },
+    //                 });
+
+    //                 // 백엔드가 0~1 스케일이면 100배, 이미 0~100이면 그대로
+    //                 const raw = jobRes.data?.progress ?? 0;
+    //                 const pct = Math.max(0, Math.min(100, raw > 1 ? raw : raw * 100));
+    //                 setProgress(pct);
+
+    //                 if (pct >= 100) {
+    //                     stopPolling();
+    //                     setModalState("done");
+    //                     // 필요하면 자동 닫기 / 페이지 이동 등 추가
+    //                     // setTimeout(() => { setModalOpen(false); navigate("/List"); }, 800);
+    //                 }
+    //                 console.log(jobRes.data);
+    //             } catch (pollErr) {
+    //                 console.error("진행률 조회 실패:", pollErr.response?.data || pollErr.message);
+    //                 stopPolling();
+    //                 setModalOpen(false);
+    //                 setModalState("idle");
+    //             }
+    //         }, 1500); // 1.5초 간격
+    //     } catch (err) {
+    //         console.error("분석 요청 실패:", err.response?.data || err.message);
+    //         setModalOpen(false);
+    //         setModalState("idle");
+    //     }
+    // };
+
     const handleGoAnalysis = async () => {
         if (!videoPath) {
             console.error("❌ 서버 저장 경로(videoPath)가 없습니다.");
@@ -187,11 +252,7 @@ function RenderPage() {
 
         try {
             // 1) 분석 요청
-            const res = await axios.post(
-                "http://127.0.0.1:5001/analyze",
-                { video_path: videoPath },
-                { headers: { "Content-Type": "application/json" } }
-            );
+            const res = await axios.post("http://127.0.0.1:5001/analyze", { video_path: videoPath });
 
             const newJobId = res.data?.job_id;
             if (!newJobId) {
@@ -206,7 +267,7 @@ function RenderPage() {
                     const jobRes = await axios.get(`http://127.0.0.1:5001/jobs/${newJobId}`, {
                         // 캐시 방지용 타임스탬프
                         params: { t: Date.now() },
-                        headers: { "Cache-Control": "no-cache" },
+                        // headers: { "Cache-Control": "no-cache" },
                     });
 
                     // 백엔드가 0~1 스케일이면 100배, 이미 0~100이면 그대로

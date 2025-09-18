@@ -107,3 +107,4 @@ build/
 .idea/
 
 venv/
+ai_venv/

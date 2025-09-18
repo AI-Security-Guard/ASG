@@ -1,0 +1,45 @@
+{
+  "video": "C:\\Users\\sojeong\\Documents\\GitHub\\AI-Security-Guard\\server\\uploaded_videos\\test1_10-1_Cam02_Assault03_Place07_Night_Spring.mp4",
+  "num_clips": 3,
+  "clips": [
+    {
+      "clip_id": 1,
+      "class_name": "assault",
+      "start_time": "00:02:17",
+      "start_bbox": [
+        540,
+        300,
+        1038,
+        645
+      ],
+      "clip_name": "test1_10-1_Cam02_Assault03_Place07_Night_Spring_clip1.mp4",
+      "clip_path": "event_clips\\test1_10-1_Cam02_Assault03_Place07_Night_Spring_clip1.mp4"
+    },
+    {
+      "clip_id": 2,
+      "class_name": "assault",
+      "start_time": "00:02:20",
+      "start_bbox": [
+        513,
+        297,
+        1011,
+        642
+      ],
+      "clip_name": "test1_10-1_Cam02_Assault03_Place07_Night_Spring_clip2.mp4",
+      "clip_path": "event_clips\\test1_10-1_Cam02_Assault03_Place07_Night_Spring_clip2.mp4"
+    },
+    {
+      "clip_id": 3,
+      "class_name": "assault",
+      "start_time": "00:02:26",
+      "start_bbox": [
+        516,
+        312,
+        1014,
+        657
+      ],
+      "clip_name": "test1_10-1_Cam02_Assault03_Place07_Night_Spring_clip3.mp4",
+      "clip_path": "event_clips\\test1_10-1_Cam02_Assault03_Place07_Night_Spring_clip3.mp4"
+    }
+  ]
+}

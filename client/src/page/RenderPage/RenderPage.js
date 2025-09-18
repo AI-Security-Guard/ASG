@@ -9,7 +9,6 @@ import * as D from "../../component/CustomModal/CustomModal.style";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import axios from "axios";
 
-// ✅ 파일 맨 위(컴포넌트 밖)에 추가
 function ProgressCircle({
     value,
     size = 120,
@@ -77,7 +76,6 @@ function RenderPage() {
     const [jobId, setJobId] = useState(null);
     const intervalRef = useRef(null);
 
-    // 폴링 정리 공용 함수
     const stopPolling = () => {
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
@@ -92,10 +90,12 @@ function RenderPage() {
         const username = user?.username;
 
         const fetchSavedVideo = async () => {
+            const token = localStorage.getItem("access_token");
             try {
                 const response = await axios.get("http://127.0.0.1:5000/bringVideo", {
                     params: { username },
                     responseType: "blob",
+                    headers: { Authorization: `Bearer ${token}` },
                 });
 
                 const contentType = response.headers["content-type"];
@@ -128,44 +128,21 @@ function RenderPage() {
             const videoURL = URL.createObjectURL(file);
             setVideoSrc(videoURL);
 
-            const user = JSON.parse(localStorage.getItem("user"));
-            const username = user?.username;
             const formData = new FormData();
-            formData.append("username", username);
             formData.append("video", file);
-
+            const token = localStorage.getItem("access_token");
             try {
-                const response = await axios.post("http://127.0.0.1:5000/uploadVideo", formData);
+                const response = await axios.post("http://127.0.0.1:5000/uploadVideo", formData, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
                 console.log("업로드 성공:", response.data);
-                setVideoPath(response.data.user.full_path); // ✅ 서버 저장 경로 추출
+                setVideoPath(response.data.user.full_path);
             } catch (err) {
                 console.error("업로드 실패:", err.response?.data || err.message);
             }
         }
     };
 
-    // const handleDeleteVideo = () => {
-    //     setVideoSrc(null);
-    //     if (fileInputRef.current) {
-    //         fileInputRef.current.value = null;
-    //     }
-    // };
-
-    // const handleDeleteVideoClick = () => {
-    //     setModalType("deleteConfirm");
-    //     setModalOpen(true);
-    // };
-
-    //주석 추가
-
-    // const handleGoAnalysis = () => {
-    //     setModalOpen(true);
-    //     setModalState("loading");
-
-    //     setTimeout(() => {
-    //         setModalState("done");
-    //     }, 3000); // 예시로 3초 후 완료로 변경
-    // };
     const handleDeleteVideo = async () => {
         const user = JSON.parse(localStorage.getItem("user"));
         const username = user?.username;
@@ -174,13 +151,11 @@ function RenderPage() {
             console.error("❌ username 없음");
             return;
         }
-
+        const token = localStorage.getItem("access_token");
         try {
             await axios.delete("http://127.0.0.1:5000/deleteVideo", {
                 data: { username },
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { Authorization: `Bearer ${token}` },
             });
             console.log("✅ 영상 삭제 성공");
         } catch (err) {

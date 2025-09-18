@@ -1,6 +1,6 @@
-# server/auth/login.py
 from flask import Blueprint, request, jsonify
-from models import db, User  # DB에서 사용자 가져오기
+from models import db, User
+from flask_jwt_extended import create_access_token
 
 login_bp = Blueprint("login", __name__)
 
@@ -19,6 +19,18 @@ def login():
 
     # 사용자가 존재하고 비밀번호가 일치할 경우
     if user and user.password == password:
-        return jsonify({"message": "Login successful", "user": user.to_dict()}), 200
+        access_token = create_access_token(
+            identity=user.username,
+        )
+        return (
+            jsonify(
+                {
+                    "message": "로그인 성공",
+                    "user": user.to_dict(),
+                    "access_token": access_token,
+                }
+            ),
+            200,
+        )
 
     return jsonify({"error": "Invalid credentials"}), 401

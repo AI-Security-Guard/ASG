@@ -25,9 +25,11 @@ function LoginPage() {
                 username: id,
                 password: password,
             });
-            const user = response.data.user;
-            localStorage.setItem("user", JSON.stringify(user));
+
+            localStorage.setItem("user", JSON.stringify(response.data.user));
+            localStorage.setItem("access_token", response.data.access_token);
             navigate("/render");
+            console.log(response.data);
         } catch (error) {
             setModalOpen(true);
         }
@@ -42,6 +44,7 @@ function LoginPage() {
                     <Input label="아이디" variant="outlined" value={id} onChange={(e) => setId(e.target.value)} />
                     <Input
                         label="비밀번호"
+                        type="password"
                         variant="outlined"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}

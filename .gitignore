@@ -105,3 +105,5 @@ build/
 # Tooling / Editors (optional to ignore)
 .vscode/
 .idea/
+
+venv/

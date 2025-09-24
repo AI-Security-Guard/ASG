@@ -1,5 +1,6 @@
 README.md
 setup.py
+setup_cpu.py
 Correlation_Module/correlation.cpp
 Correlation_Module/correlation_sampler.cpp
 Correlation_Module/spatial_correlation_sampler/__init__.py

@@ -1,163 +1,170 @@
-import os
-import uuid
-import threading
-from flask import Response, Blueprint, request, jsonify, make_response, abort
-from analyze import (
-    model,
-    processing_jobs,
-    analyze_video_pure,
-    db_get_job,
-    db_upsert_job,
-)
-from analyze import CLIPS_DIR
+import os, threading, traceback
+from flask import Blueprint, request, jsonify, abort, Response, current_app
+from database import db
+from models.analysis import Job
+from analyze import analyze_video_pure as run_analysis, CLIPS_DIR
 
 analyze_bp = Blueprint("analyze", __name__)
 
 
-@analyze_bp.route("/analyze", methods=["POST"])
-def analyze_video():
+# -----------------------------
+# DB 업데이트 헬퍼 (0~100 스케일 고정)
+# -----------------------------
+def set_job(job_id, **fields):
+    j = Job.query.get(job_id)
+    if not j:
+        return
+    for k, v in fields.items():
+        setattr(j, k, v)
+    db.session.commit()
+
+
+def set_progress(job_id, pct: float):
+    """pct는 0~100 float"""
+    pct = max(0.0, min(100.0, float(pct)))
+    set_job(job_id, progress=pct)
+
+
+# -----------------------------
+# 백그라운드 워커
+# -----------------------------
+def _run_in_background(app, job_id, path):
+    # 스레드에서 반드시 앱 컨텍스트!
+    with app.app_context():
+        try:
+            print(f"[BG] start job={job_id}, path={path}", flush=True)
+            set_job(job_id, status="running", progress=0.0)
+
+            # analyze 모듈이 on_progress 콜백을 지원하면 붙이고,
+            # 아니면 그냥 호출 (TypeError 무시)
+            def on_progress(p):  # p는 0~1 또는 0~100 둘 다 허용
+                try:
+                    val = float(p)
+                    if val <= 1.0:
+                        val *= 100.0
+                    set_progress(job_id, val)
+                    print(f"[BG] progress={val:.1f}%", flush=True)
+                except Exception:
+                    traceback.print_exc()
+
+            try:
+                run_analysis(job_id, path, on_progress=on_progress)
+            except TypeError:
+                # 구버전 시그니처: (job_id, path)
+                run_analysis(job_id, path)
+
+            set_job(job_id, status="done", progress=100.0)
+            print(f"[BG] done job={job_id}", flush=True)
+        except Exception as e:
+            print(f"[BG][ERROR] job={job_id}: {e}", flush=True)
+            traceback.print_exc()
+            set_job(job_id, status="failed", progress=0.0)
+            # models.Job에 error_message 컬럼이 있다면 남김
+            try:
+                set_job(job_id, error_message=str(e))
+            except Exception:
+                pass
+        finally:
+            # 스레드 세션 정리 (SQLite 잠금/세션 누수 예방)
+            try:
+                db.session.remove()
+            except Exception:
+                pass
+
+
+# -----------------------------
+# 엔드포인트
+# -----------------------------
+@analyze_bp.route("/analyze", methods=["POST", "OPTIONS"])
+def start_analyze():
+    if request.method == "OPTIONS":
+        return ("", 204)
+
     data = request.get_json(silent=True) or {}
     video_path = data.get("video_path")
+    if not video_path:
+        return jsonify({"error": "video_path required"}), 400
 
-    if model is None:
-        job_id = str(uuid.uuid4())
-        payload = {"job_id": job_id, "results": None}
-        db_upsert_job(payload)
-        return make_response(
-            jsonify({"job_id": job_id, "detail": "Model not loaded"}), 503
-        )
+    # Job 생성 (status/진행률 초기화는 여기서 확정)
+    job = Job(video_path=video_path, status="queued", progress=0.0)
+    db.session.add(job)
+    db.session.commit()
 
-    if not video_path or not os.path.exists(video_path):
-        job_id = str(uuid.uuid4())
-        payload = {"job_id": job_id, "results": None}
-        db_upsert_job(payload)
-        return make_response(
-            jsonify(
-                {"job_id": job_id, "detail": f"Video file not found: {video_path}"}
-            ),
-            404,
-        )
+    # 현재 앱 객체를 캡처해서 스레드로 전달
+    app = current_app._get_current_object()
+    threading.Thread(
+        target=_run_in_background, args=(app, job.id, video_path), daemon=True
+    ).start()
 
-    # 항상 비동기: 초기 payload 저장(최소)
-    job_id = str(uuid.uuid4())
-    processing_jobs[job_id] = {"job_id": job_id, "results": None}
-    db_upsert_job(processing_jobs[job_id])
-
-    th = threading.Thread(
-        target=analyze_video_pure, args=(job_id, video_path), daemon=True
-    )
-    th.start()
-
-    resp = make_response(jsonify({"job_id": job_id}), 202)
-    resp.headers["Location"] = f"/jobs/{job_id}"
-    return resp
+    # 프론트가 바로 폴링 시작할 수 있게 202로 즉시 반환
+    return jsonify({"job_id": str(job.id), "status": "running", "progress": 0.0}), 202
 
 
-@analyze_bp.route("/jobs/<job_id>", methods=["GET"])
-def get_job(job_id: str):
-    job = db_get_job(job_id)
+@analyze_bp.route("/jobs/<job_id>", methods=["GET", "OPTIONS"])
+def get_job(job_id):
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    job = Job.query.get(job_id)
     if not job:
-        return jsonify({"detail": "Job not found"}), 404
+        return jsonify({"error": "Job not found"}), 404
 
-    # 'eresults' 오타 보정
-    if "eresults" in job and "results" not in job:
-        job["results"] = job.pop("eresults")
+    payload = {
+        "job_id": str(job.id),
+        "status": job.status,  # "queued" | "running" | "done" | "failed"
+        "progress": float(job.progress or 0),  # 0~100 기준
+    }
+    # 선택 필드
+    if hasattr(job, "results") and job.results:
+        payload["results"] = job.results
+    if hasattr(job, "error_message") and job.error_message:
+        payload["error"] = job.error_message
 
-    res = job.get("results") or {}
-
-    # DB에 clips_info가 없으면 clips_info_json 파일을 읽어 주입
-    if "clips_info" not in res:
-        info_path = res.get("clips_info_json")
-        if info_path:
-            try:
-                import os, json
-
-                # 역슬래시 → OS 구분자로 통일
-                norm = info_path.replace("\\", os.sep)
-                # 후보 경로들 (존재하는 것 찾으면 사용)
-                base_dir = os.path.dirname(os.path.abspath(__file__))  # routes.py 기준
-                cwd_dir = os.getcwd()  # 현재 작업 디렉토리
-                candidates = []
-                # 절대경로면 그 자체, 아니면 base_dir/cwd_dir 기준 상대경로
-                if os.path.isabs(norm):
-                    candidates.append(norm)
-                else:
-                    candidates.append(os.path.join(base_dir, norm))
-                    candidates.append(os.path.join(cwd_dir, norm))
-
-                abs_path = None
-                for c in candidates:
-                    if os.path.exists(c):
-                        abs_path = c
-                        break
-
-                if abs_path is None:
-                    raise FileNotFoundError(
-                        f"clips_info_json not found. tried={candidates}"
-                    )
-
-                with open(abs_path, "r", encoding="utf-8") as f:
-                    res["clips_info"] = json.load(f)
-
-                job["results"] = res
-                # 디버그 힌트 (원하면 지워도 됨)
-                job["_debug"] = {
-                    "cwd": cwd_dir,
-                    "base_dir": base_dir,
-                    "chosen_path": abs_path,
-                }
-
-            except Exception as e:
-                job.setdefault("_warn", {})["clips_info_load"] = str(e)
-                job.setdefault("_warn", {})["clips_info_json"] = info_path
-
-    return jsonify(job)
-
-
-def _send_mp4_partial(full_path: str):
-    if not os.path.exists(full_path):
-        abort(404)
-    file_size = os.path.getsize(full_path)
-    rng = request.headers.get("Range")
-    if not rng:
-        with open(full_path, "rb") as f:
-            data = f.read()
-        resp = Response(data, 200, mimetype="video/mp4")
-        resp.headers["Accept-Ranges"] = "bytes"
-        resp.headers["Content-Length"] = str(file_size)
-        resp.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
-        return resp
-
-    # Range: bytes=start-end
-    byte1, byte2 = 0, None
-    parts = rng.replace("bytes=", "").split("-")
-    if parts[0]:
-        byte1 = int(parts[0])
-    if len(parts) > 1 and parts[1]:
-        byte2 = int(parts[1])
-
-    length = file_size - byte1 if byte2 is None else byte2 - byte1 + 1
-    with open(full_path, "rb") as f:
-        f.seek(byte1)
-        data = f.read(length)
-
-    resp = Response(data, 206, mimetype="video/mp4", direct_passthrough=True)
-    resp.headers["Content-Range"] = f"bytes {byte1}-{byte1+length-1}/{file_size}"
-    resp.headers["Accept-Ranges"] = "bytes"
-    resp.headers["Content-Length"] = str(length)
-    resp.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
-    return resp
+    return jsonify(payload), 200
 
 
 @analyze_bp.route("/event_clips/<path:fname>", methods=["GET"])
 def serve_event_clip(fname: str):
-    # routes.py 기준 절대경로로 변환
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    clips_dir = CLIPS_DIR
-    if not os.path.isabs(clips_dir):
-        clips_dir = os.path.join(base_dir, clips_dir)
+    # 경로 탈출 방지: CLIPS_DIR 기준 절대경로 확정 후 prefix 검사
+    base = os.path.abspath(CLIPS_DIR)
+    target = os.path.abspath(os.path.join(base, fname))
+    if not target.startswith(base + os.sep) and target != base:
+        abort(403)
 
-    # 보안: 상위 경로 차단
-    safe = os.path.normpath(fname).replace("\\", "/")
-    full_path = os.path.join(clips_dir, safe)
-    return _send_mp4_partial(full_path)
+    if not os.path.exists(target):
+        abort(404)
+
+    file_size = os.path.getsize(target)
+    rng = request.headers.get("Range")
+
+    if not rng:
+        with open(target, "rb") as f:
+            data = f.read()
+        resp = Response(data, 200, mimetype="video/mp4")
+        resp.headers["Accept-Ranges"] = "bytes"
+        resp.headers["Content-Length"] = str(file_size)
+        return resp
+
+    # Partial content (Range) 응답
+    try:
+        start = int(rng.replace("bytes=", "").split("-")[0])
+    except Exception:
+        start = 0
+
+    if file_size <= 0:
+        abort(416)  # Range Not Satisfiable
+
+    chunk = 1024 * 512  # 512KB
+    end = min(start + chunk, file_size - 1)
+    if start > end:
+        abort(416)
+
+    with open(target, "rb") as f:
+        f.seek(start)
+        data = f.read(end - start + 1)
+
+    resp = Response(data, 206, mimetype="video/mp4")
+    resp.headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+    resp.headers["Accept-Ranges"] = "bytes"
+    resp.headers["Content-Length"] = str(end - start + 1)
+    return resp

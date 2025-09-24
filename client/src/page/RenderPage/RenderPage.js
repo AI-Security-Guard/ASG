@@ -236,61 +236,73 @@ function RenderPage() {
     // };
 
     const handleGoAnalysis = async () => {
+        console.log("[GO] 클릭됨"); // 1) 함수가 호출되는지
+        console.log("videoPath:", videoPath); // 2) early return 되는지
+
         if (!videoPath) {
             console.error("❌ 서버 저장 경로(videoPath)가 없습니다.");
             return;
         }
 
-        // 모달 열고 로딩 상태 세팅
         setModalOpen(true);
         setModalType("none");
         setModalState("loading");
         setProgress(0);
-
-        // 혹시 살아있는 폴링이 있으면 정리
         stopPolling();
 
         try {
-            // 1) 분석 요청
-            const res = await axios.post("http://127.0.0.1:5001/analyze", { video_path: videoPath });
+            console.log("[POST] /analyze 요청 보냄");
+            const res = await axios.post(
+                "http://127.0.0.1:5001/analyze",
+                { video_path: videoPath },
+                {
+                    // 타임아웃/디버깅에 도움
+                    timeout: 15000,
+                    headers: { "Content-Type": "application/json" },
+                    // 로컬 개발 중이면 보통 필요없지만, 쿠키 쓰면 true
+                    withCredentials: false,
+                }
+            );
+            console.log("[POST] 응답 원본:", res);
+            console.log("[POST] 응답 data:", res?.data);
 
-            const newJobId = res.data?.job_id;
+            const newJobId = res?.data?.job_id; // ← 키 이름 꼭 확인!
             if (!newJobId) {
-                throw new Error("job_id가 응답에 없습니다.");
+                console.error("❌ 응답에 job_id 없음. 받은 키들:", Object.keys(res?.data || {}));
+                // throw 대신 return으로 바꾸면 흐름 중단만 하고 catch로 안감
+                setModalOpen(false);
+                setModalState("idle");
+                return;
             }
+
             setJobId(newJobId);
             localStorage.setItem("jobId", newJobId);
-            console.log(res.data);
-            // 2) 진행률 폴링
+            console.log("✅ 분석 시작, job_id =", newJobId); // ← 이게 이제 찍혀야 정상
+
+            // 폴링 시작
             intervalRef.current = setInterval(async () => {
                 try {
                     const jobRes = await axios.get(`http://127.0.0.1:5001/jobs/${newJobId}`, {
-                        // 캐시 방지용 타임스탬프
                         params: { t: Date.now() },
-                        // headers: { "Cache-Control": "no-cache" },
                     });
-
-                    // 백엔드가 0~1 스케일이면 100배, 이미 0~100이면 그대로
                     const raw = jobRes.data?.progress ?? 0;
                     const pct = Math.max(0, Math.min(100, raw > 1 ? raw : raw * 100));
                     setProgress(pct);
-
+                    console.log("[POLL] progress:", raw, "=>", pct, "%");
+                    console.log(raw);
                     if (pct >= 100) {
                         stopPolling();
                         setModalState("done");
-                        // 필요하면 자동 닫기 / 페이지 이동 등 추가
-                        // setTimeout(() => { setModalOpen(false); navigate("/List"); }, 800);
                     }
-                    console.log(jobRes.data);
                 } catch (pollErr) {
-                    console.error("진행률 조회 실패:", pollErr.response?.data || pollErr.message);
+                    console.error("❌ 진행률 조회 실패:", pollErr?.response?.data || pollErr?.message);
                     stopPolling();
                     setModalOpen(false);
                     setModalState("idle");
                 }
-            }, 1500); // 1.5초 간격
+            }, 1500);
         } catch (err) {
-            console.error("분석 요청 실패:", err.response?.data || err.message);
+            console.error("❌ 분석 요청 실패:", err?.response?.data || err?.message);
             setModalOpen(false);
             setModalState("idle");
         }

@@ -1,0 +1,19 @@
+{
+  "video": "C:\\Users\\sojeong\\Documents\\GitHub\\ASG\\server\\uploaded_videos\\20210030_10-1_Cam01_Assault03_Place07_Night_Winter.mp4",
+  "num_clips": 1,
+  "clips": [
+    {
+      "clip_id": 1,
+      "class_name": "assault",
+      "start_time": "00:02:47",
+      "start_bbox": [
+        816,
+        231,
+        1314,
+        576
+      ],
+      "clip_name": "20210030_10-1_Cam01_Assault03_Place07_Night_Winter_clip1.mp4",
+      "clip_path": "event_clips\\20210030_10-1_Cam01_Assault03_Place07_Night_Winter_clip1.mp4"
+    }
+  ]
+}

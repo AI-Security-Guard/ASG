@@ -197,7 +197,7 @@ processing_jobs: Dict[str, Dict[str, Any]] = {}
 
 
 # 1패스 분석 + 주석영상 스트리밍 + 클립 동시 생성
-def analyze_video_pure(job_id: str, video_path: str):
+def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
     try:
         # 초기 DB 스냅샷 (progress 포함)
         processing_jobs[job_id] = {"job_id": job_id, "progress": 0.0, "results": None}
@@ -501,6 +501,8 @@ def analyze_video_pure(job_id: str, video_path: str):
                 if progress - last_saved_progress >= 1.0:
                     processing_jobs[job_id]["progress"] = float(progress)
                     db_upsert_job(processing_jobs[job_id])
+                    if on_progress:
+                        on_progress(progress)  # ← SQLAlchemy Job 테이블에도 업데이트
                     last_saved_progress = progress
 
             # 다음 창으로 슬라이드

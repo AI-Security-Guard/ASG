@@ -87,16 +87,18 @@ json
   "job_id": "e7034efc-1b24-4288-b7f2-37118b8123f6",
   "status": "running",
   "progress": 40.03,
-  "results": null
+  "results": null,
+  "annotated_video": null
 }
 ```
 
-| 필드명     | 타입    | 설명                       |
-| ---------- | ------- | -------------------------- |
-| `job_id`   | string  | 분석에 사용된 원본 영상 id |
-| `status`   | string  | 분석 상태                  |
-| `progress` | integer | 분석 진행도                |
-| `results`  | string  | 분석 결과                  |
+| 필드명            | 타입    | 설명                       |
+| ----------------- | ------- | -------------------------- |
+| `job_id`          | string  | 분석에 사용된 원본 영상 id |
+| `status`          | string  | 분석 상태                  |
+| `progress`        | integer | 분석 진행도                |
+| `results`         | string  | 분석 결과                  |
+| `annotated_video` | string  | 분석된 영상 경로           |
 
 <br>
 
@@ -118,23 +120,25 @@ json
       "clip_name": "sample_clip2.mp4",
       "clip_path": "event_clips/sample_clip2.mp4"
     },
+    "annotated_video":"analyzed_videos/sample_analyze.mp4"
   ]
 }
 
 ```
 
-| 필드명       | 타입          | 설명                                                |
-| ------------ | ------------- | --------------------------------------------------- |
-| `job_id`     | string        | 분석에 사용된 원본 영상 id                          |
-| `status`     | string        | 분석 상태                                           |
-| `progress`   | integer       | 분석 진행도                                         |
-| `results`    | string        | 분석 결과                                           |
-| `clip_id`    | integer       | 클립 고유 번호(1부터 증가)                          |
-| `class_name` | string        | 이상행동 클래스(예: `assault`)                      |
-| `start_time` | string        | 이상행동 시작 시각(HH:MM:SS, 원본 영상 기준)        |
-| `start_bbox` | array \| null | 시작 프레임 박스 `[x1,y1,x2,y2]` (원본 해상도 좌표) |
-| `clip_name`  | string        | 클립명(예: `<원본>_clip1.mp4`(1부터 증가))          |
-| `clip_path`  | string        | 클립 파일 경로                                      |
+| 필드명            | 타입          | 설명                                                |
+| ----------------- | ------------- | --------------------------------------------------- |
+| `job_id`          | string        | 분석에 사용된 원본 영상 id                          |
+| `status`          | string        | 분석 상태                                           |
+| `progress`        | integer       | 분석 진행도                                         |
+| `results`         | string        | 분석 결과                                           |
+| `clip_id`         | integer       | 클립 고유 번호(1부터 증가)                          |
+| `class_name`      | string        | 이상행동 클래스(예: `assault`)                      |
+| `start_time`      | string        | 이상행동 시작 시각(HH:MM:SS, 원본 영상 기준)        |
+| `start_bbox`      | array \| null | 시작 프레임 박스 `[x1,y1,x2,y2]` (원본 해상도 좌표) |
+| `clip_name`       | string        | 클립명(예: `<원본>_clip1.mp4`(1부터 증가))          |
+| `clip_path`       | string        | 클립 파일 경로                                      |
+| `annotated_video` | string        | 분석된 영상 경로                                    |
 
 ## 📦 DB 테이블 정의
 

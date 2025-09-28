@@ -1,35 +1,37 @@
-# s_ai/app.py
 from flask import Flask
-from database import init_db, db
-from routes import analyze_bp
+from database import db
 from flask_cors import CORS
-
-ALLOWED = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
 
 def create_app():
     app = Flask(__name__)
-    init_db(app)
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///jobs.db"
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-    # 전역 CORS (성공/실패 응답 모두에 헤더 자동 부착)
     CORS(
         app,
-        resources={r"/*": {"origins": ALLOWED}},
-        supports_credentials=True,
-        allow_headers=["Content-Type", "Authorization"],
-        methods=["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
+        resources={
+            r"/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]}
+        },
+        supports_credentials=False,
+        allow_headers=["Content-Type"],
+        methods=["GET", "POST", "OPTIONS"],
+        max_age=600,
     )
-    # 개발용: 테이블 없으면 생성 (migrate 쓰면 제거 가능)
+    db.init_app(app)
+
+    # 모델 import 후 테이블 생성
     with app.app_context():
-        from models.analysis import Job, ClipSummary
+        from models.analysis import Job, Clip  # noqa
 
         db.create_all()
 
+    # 블루프린트 등록
+    from routes import analyze_bp
+
     app.register_blueprint(analyze_bp)
+
     return app
 
 
 app = create_app()
-
-if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5001, debug=True)

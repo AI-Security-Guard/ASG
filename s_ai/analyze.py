@@ -40,10 +40,8 @@ THRESHOLD_PATH = "model/best_threshold.txt"
 # 디스크 저장 폴더
 ANNOTATED_DIR = "analyzed_videos"  # 주석(박스) 영상
 CLIPS_DIR = "event_clips"  # 비정상 구간 클립 모음 (주석영상에서 즉시 추출, 1패스)
-CLIPS_INFO_DIR = "clip_summaries"  # 클립 메타정보(JSON)
 os.makedirs(ANNOTATED_DIR, exist_ok=True)
 os.makedirs(CLIPS_DIR, exist_ok=True)
-os.makedirs(CLIPS_INFO_DIR, exist_ok=True)
 
 # DB (SQLite) — payload에 최소 데이터 + 진행률(progress) 포함
 DB_PATH = "jobs.db"
@@ -51,14 +49,17 @@ DB_PATH = "jobs.db"
 
 # DB 유틸 (최소 필드 + progress)
 def _db():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=5.0)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
+    conn.execute("PRAGMA busy_timeout=5000;")
     conn.execute(
         """
-    CREATE TABLE IF NOT EXISTS jobs(
-        job_id  TEXT PRIMARY KEY,
-        payload TEXT NOT NULL
-    )
-    """
+        CREATE TABLE IF NOT EXISTS jobs(
+            job_id  TEXT PRIMARY KEY,
+            payload TEXT NOT NULL
+        )
+        """
     )
     return conn
 
@@ -66,12 +67,39 @@ def _db():
 _DB_CONN = _db()
 
 
+# analyze.py 상단 DB 유틸 근처에 추가
+def _get_jobs_columns():
+    cur = _DB_CONN.execute("PRAGMA table_info(jobs);")
+    return {row[1] for row in cur.fetchall()}
+
+
+def _legacy_defaults(job: Dict[str, Any]):
+    vp = job.get("video_path") or ""
+    st = job.get("status") or "running"
+    pr = float(job.get("progress") or 0.0)
+    rv = job.get("results")
+    if isinstance(rv, (dict, list)):
+        rs = json.dumps(rv, ensure_ascii=False)
+    elif rv is None:
+        rs = ""
+    else:
+        rs = str(rv)
+    return vp, st, pr, rs
+
+
 def _sanitize_job_for_db(job: Dict[str, Any]) -> Dict[str, Any]:
+    # DB에 저장할 필드만 추려서 저장 (status/progress/results 포함)
     safe: Dict[str, Any] = {"job_id": job.get("job_id")}
+    if "status" in job and isinstance(job["status"], str):
+        safe["status"] = job["status"]
     if "progress" in job and isinstance(job["progress"], (int, float)):
         safe["progress"] = float(job["progress"])
     res = job.get("results")
-    if isinstance(res, dict):
+    # ✅ 결과가 "클립 배열(list)"이면 그대로 저장
+    if isinstance(res, list):
+        safe["results"] = res
+    # (하위 호환) dict 형태면 허용된 키만 저장
+    elif isinstance(res, dict):
         allowed = {
             "video_path",
             "annotated_video",
@@ -87,15 +115,39 @@ def _sanitize_job_for_db(job: Dict[str, Any]) -> Dict[str, Any]:
 
 def db_upsert_job(job: Dict[str, Any]):
     payload = json.dumps(_sanitize_job_for_db(job), ensure_ascii=False)
+    cols = _get_jobs_columns()
     cur = _DB_CONN.cursor()
-    cur.execute(
-        """
-        INSERT INTO jobs (job_id, payload)
-        VALUES (?, ?)
-        ON CONFLICT(job_id) DO UPDATE SET payload=excluded.payload
-    """,
-        (job.get("job_id"), payload),
-    )
+
+    # 기본 컬럼
+    insert_cols = ["job_id", "payload"]
+    insert_vals = [job.get("job_id"), payload]
+    update_sets = ["payload=excluded.payload"]
+
+    # 레거시 컬럼 채우기 (있을 때만)
+    vp, st, pr, rs = _legacy_defaults(job)
+    if "video_path" in cols:
+        insert_cols.append("video_path")
+        insert_vals.append(vp)
+        update_sets.append("video_path=excluded.video_path")
+    if "status" in cols:
+        insert_cols.append("status")
+        insert_vals.append(st)
+        update_sets.append("status=excluded.status")
+    if "progress" in cols:
+        insert_cols.append("progress")
+        insert_vals.append(pr)
+        update_sets.append("progress=excluded.progress")
+    if "results" in cols:
+        insert_cols.append("results")
+        insert_vals.append(rs)
+        update_sets.append("results=excluded.results")
+
+    q = f"""
+        INSERT INTO jobs ({", ".join(insert_cols)})
+        VALUES ({", ".join(["?"] * len(insert_cols))})
+        ON CONFLICT(job_id) DO UPDATE SET {", ".join(update_sets)}
+    """
+    cur.execute(q, insert_vals)
     _DB_CONN.commit()
 
 
@@ -200,7 +252,13 @@ processing_jobs: Dict[str, Dict[str, Any]] = {}
 def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
     try:
         # 초기 DB 스냅샷 (progress 포함)
-        processing_jobs[job_id] = {"job_id": job_id, "progress": 0.0, "results": None}
+        processing_jobs[job_id] = {
+            "job_id": job_id,
+            "status": "running",
+            "progress": 0.0,
+            "results": None,
+            "video_path": video_path,
+        }
         db_upsert_job(processing_jobs[job_id])
 
         threshold = prob_threshold
@@ -499,6 +557,7 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
                     progress = 0.0
                 # 1% 이상 변할 때만 저장
                 if progress - last_saved_progress >= 1.0:
+                    processing_jobs[job_id]["status"] = "running"
                     processing_jobs[job_id]["progress"] = float(progress)
                     db_upsert_job(processing_jobs[job_id])
                     if on_progress:
@@ -533,41 +592,29 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
         annot_writer.release()
         cap.release()
 
-        # (마무리) 클립 메타 JSON 저장
-        info_path = os.path.join(CLIPS_INFO_DIR, f"{base_name}_clips.json")
-        clips_payload = {
-            "video": video_path,
-            "num_clips": len(clips_meta),
-            "clips": clips_meta,
-        }
-        with open(info_path, "w", encoding="utf-8") as f:
-            json.dump(clips_payload, f, ensure_ascii=False, indent=2)
-
         # 최종 결과 (progress=100) - DB 저장 + 동시에 return 할 객체
-        result = {
-            "video_path": video_path,
-            "annotated_video": annotated_path,
-            "num_clips": len(clips_meta),
-            "clips_info_json": info_path,  # 파일 경로
-            "clips_info": clips_payload,  # 파일 **내용**을 그대로 포함 (선택)
-        }
+        result_clips = clips_meta  # [{ clip_id, class_name, start_time, start_bbox, clip_name, clip_path }, ...]
         processing_jobs[job_id] = {
             "job_id": job_id,
+            "status": "done",
             "progress": 100.0,
-            "results": result,
+            "results": result_clips,
+            "video_path": video_path,
         }
         db_upsert_job(processing_jobs[job_id])
 
         # ✅ 호출자에게도 결과를 즉시 반환
-        return result
+        return {"ok": True, "results": result_clips}
 
     except Exception as e:
         # 실패 시에도 DB에 남기고, 호출자에게 에러 형식 반환
         err_payload = {
             "job_id": job_id,
+            "status": "error",
             "progress": float(processing_jobs.get(job_id, {}).get("progress", 0.0)),
             "results": None,
             "error": str(e),
+            "video_path": video_path,
         }
         processing_jobs[job_id] = err_payload
         db_upsert_job(err_payload)

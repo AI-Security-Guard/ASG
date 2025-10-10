@@ -6,9 +6,10 @@ from analyze import (
     model,
     processing_jobs,
     analyze_video_pure,
-    db_get_job,
     db_upsert_job,
-)
+    db_get_job,
+)  # 안전하게 재확인 import
+
 from analyze import CLIPS_DIR
 
 analyze_bp = Blueprint("analyze", __name__)
@@ -30,16 +31,30 @@ def analyze_video():
 
         if model is None:
             job_id = str(uuid.uuid4())
-            payload = {"job_id": job_id, "results": None}
-            db_upsert_job(payload)
+            # 최소 필드로 스냅샷 저장 (status=error, message 활용)
+            db_upsert_job(
+                {
+                    "job_id": job_id,
+                    "status": "error",
+                    "progress": 0.0,
+                    "message": "Model not loaded",
+                }
+            )
             return make_response(
                 jsonify({"job_id": job_id, "detail": "Model not loaded"}), 503
             )
 
         if not video_path or not os.path.exists(video_path):
             job_id = str(uuid.uuid4())
-            payload = {"job_id": job_id, "results": None}
-            db_upsert_job(payload)
+            db_upsert_job(
+                {
+                    "job_id": job_id,
+                    "status": "error",
+                    "progress": 0.0,
+                    "video_path": video_path or "",
+                    "message": f"Video file not found: {video_path}",
+                }
+            )
             return make_response(
                 jsonify(
                     {"job_id": job_id, "detail": f"Video file not found: {video_path}"}

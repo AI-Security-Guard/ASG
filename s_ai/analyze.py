@@ -1,4 +1,4 @@
-import os
+import os, sqlite3
 import cv2
 import json
 import sqlite3
@@ -44,7 +44,8 @@ os.makedirs(ANNOTATED_DIR, exist_ok=True)
 os.makedirs(CLIPS_DIR, exist_ok=True)
 
 # DB (SQLite) — payload에 최소 데이터 + 진행률(progress) 포함
-DB_PATH = "jobs.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "jobs.db")
 
 
 # DB 유틸 (최소 필드 + progress)
@@ -53,14 +54,8 @@ def _db():
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute("PRAGMA busy_timeout=5000;")
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS jobs(
-            job_id  TEXT PRIMARY KEY,
-            payload TEXT NOT NULL
-        )
-        """
-    )
+    # ❌ 여기서 테이블을 임의 생성하지 않는다!
+    # SQLAlchemy가 만든 기존 jobs 스키마만 사용한다.
     return conn
 
 
@@ -73,91 +68,107 @@ def _get_jobs_columns():
     return {row[1] for row in cur.fetchall()}
 
 
-def _legacy_defaults(job: Dict[str, Any]):
-    vp = job.get("video_path") or ""
-    st = job.get("status") or "running"
-    pr = float(job.get("progress") or 0.0)
-    rv = job.get("results")
-    if isinstance(rv, (dict, list)):
-        rs = json.dumps(rv, ensure_ascii=False)
-    elif rv is None:
-        rs = ""
-    else:
-        rs = str(rv)
-    return vp, st, pr, rs
-
-
-def _sanitize_job_for_db(job: Dict[str, Any]) -> Dict[str, Any]:
-    # DB에 저장할 필드만 추려서 저장 (status/progress/results 포함)
-    safe: Dict[str, Any] = {"job_id": job.get("job_id")}
-    if "status" in job and isinstance(job["status"], str):
-        safe["status"] = job["status"]
-    if "progress" in job and isinstance(job["progress"], (int, float)):
-        safe["progress"] = float(job["progress"])
-    res = job.get("results")
-    # ✅ 결과가 "클립 배열(list)"이면 그대로 저장
-    if isinstance(res, list):
-        safe["results"] = res
-    # (하위 호환) dict 형태면 허용된 키만 저장
-    elif isinstance(res, dict):
-        allowed = {
-            "video_path",
-            "annotated_video",
-            "num_clips",
-            "clips_info_json",
-            "clips_info",
-        }
-        safe["results"] = {k: v for k, v in res.items() if k in allowed}
-    else:
-        safe["results"] = None
-    return safe
-
-
 def db_upsert_job(job: Dict[str, Any]):
-    payload = json.dumps(_sanitize_job_for_db(job), ensure_ascii=False)
+    """
+    jobs 테이블에 존재하는 칼럼만 골라서 upsert.
+    예상 칼럼: job_id, video_path, status, progress, results, annotated_video, message
+    (없으면 자동으로 건너뜀)
+    """
     cols = _get_jobs_columns()
     cur = _DB_CONN.cursor()
 
-    # 기본 컬럼
-    insert_cols = ["job_id", "payload"]
-    insert_vals = [job.get("job_id"), payload]
-    update_sets = ["payload=excluded.payload"]
+    insert_cols = ["job_id"]
+    insert_vals = [job.get("job_id")]
+    update_sets = []
 
-    # 레거시 컬럼 채우기 (있을 때만)
-    vp, st, pr, rs = _legacy_defaults(job)
-    if "video_path" in cols:
-        insert_cols.append("video_path")
-        insert_vals.append(vp)
-        update_sets.append("video_path=excluded.video_path")
-    if "status" in cols:
-        insert_cols.append("status")
-        insert_vals.append(st)
-        update_sets.append("status=excluded.status")
-    if "progress" in cols:
-        insert_cols.append("progress")
-        insert_vals.append(pr)
-        update_sets.append("progress=excluded.progress")
+    def add(col: str, val: Any):
+        if col in cols:
+            insert_cols.append(col)
+            insert_vals.append(val)
+            update_sets.append(f"{col}=excluded.{col}")
+
+    # 선택적으로 존재할 수 있는 컬럼들만 반영
+    add("video_path", job.get("video_path") or "")
+    add("status", job.get("status") or "running")
+
+    pr = job.get("progress")
+    add("progress", float(pr) if isinstance(pr, (int, float)) else 0.0)
+
+    # results 칼럼이 있다면 JSON 문자열로 저장(없으면 skip)
     if "results" in cols:
+        res = job.get("results")
+        res_str = json.dumps(res, ensure_ascii=False) if res is not None else None
         insert_cols.append("results")
-        insert_vals.append(rs)
+        insert_vals.append(res_str)
         update_sets.append("results=excluded.results")
 
-    q = f"""
-        INSERT INTO jobs ({", ".join(insert_cols)})
-        VALUES ({", ".join(["?"] * len(insert_cols))})
-        ON CONFLICT(job_id) DO UPDATE SET {", ".join(update_sets)}
-    """
+    # annotated_video / message 같은 칼럼도 있으면 반영
+    if "annotated_video" in cols:
+        add("annotated_video", job.get("annotated_video"))
+    if "message" in cols:
+        add("message", job.get("message"))
+
+    placeholders = ", ".join(["?"] * len(insert_cols))
+    columns_csv = ", ".join(insert_cols)
+
+    if update_sets:
+        q = f"""
+            INSERT INTO jobs ({columns_csv})
+            VALUES ({placeholders})
+            ON CONFLICT(job_id) DO UPDATE SET {", ".join(update_sets)}
+        """
+    else:
+        # 혹시 정말 job_id 외에 갱신할 칼럼이 하나도 없다면…
+        q = f"""
+            INSERT INTO jobs ({columns_csv})
+            VALUES ({placeholders})
+            ON CONFLICT(job_id) DO NOTHING
+        """
+
     cur.execute(q, insert_vals)
     _DB_CONN.commit()
 
 
+# def db_get_job(job_id: str) -> Dict[str, Any] | None:
+#     cur = _DB_CONN.cursor()
+#     cur.execute("SELECT payload FROM jobs WHERE job_id = ?", (job_id,))
+#     row = cur.fetchone()
+#     if not row:
+#         return None
+#     return json.loads(row[0])
+
+
 def db_get_job(job_id: str) -> Dict[str, Any] | None:
     cur = _DB_CONN.cursor()
-    cur.execute("SELECT payload FROM jobs WHERE job_id = ?", (job_id,))
+    cols = _get_jobs_columns()
+    # 읽을 칼럼만 구성
+    wanted = [
+        c
+        for c in [
+            "job_id",
+            "video_path",
+            "status",
+            "progress",
+            "results",
+            "annotated_video",
+            "message",
+        ]
+        if c in cols
+    ]
+    if not wanted:
+        return None
+    cur.execute(f"SELECT {', '.join(wanted)} FROM jobs WHERE job_id = ?", (job_id,))
     row = cur.fetchone()
     if not row:
         return None
-    return json.loads(row[0])
+    data = dict(zip(wanted, row))
+    # results가 문자열이면 JSON 디코드 시도
+    if "results" in data and isinstance(data["results"], str):
+        try:
+            data["results"] = json.loads(data["results"])
+        except Exception:
+            pass
+    return data
 
 
 # 유틸
@@ -258,6 +269,7 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
             "progress": 0.0,
             "results": None,
             "video_path": video_path,
+            "annotated_video": annotated_path,
         }
         db_upsert_job(processing_jobs[job_id])
 
@@ -607,15 +619,14 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
         return {"ok": True, "results": result_clips}
 
     except Exception as e:
-        # 실패 시에도 DB에 남기고, 호출자에게 에러 형식 반환
-        err_payload = {
+        err_job = {
             "job_id": job_id,
             "status": "error",
             "progress": float(processing_jobs.get(job_id, {}).get("progress", 0.0)),
             "results": None,
-            "error": str(e),
             "video_path": video_path,
+            "message": str(e),  # ← error 대신 message
         }
-        processing_jobs[job_id] = err_payload
-        db_upsert_job(err_payload)
+        processing_jobs[job_id] = err_job
+        db_upsert_job(err_job)
         return {"ok": False, "error": str(e)}

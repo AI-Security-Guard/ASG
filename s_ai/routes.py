@@ -11,6 +11,7 @@ from analyze import (
 )  # 안전하게 재확인 import
 
 from analyze import CLIPS_DIR
+from flask import current_app
 
 analyze_bp = Blueprint("analyze", __name__)
 
@@ -72,9 +73,13 @@ def analyze_video():
         }
         db_upsert_job(processing_jobs[job_id])
 
-        th = threading.Thread(
-            target=analyze_video_pure, args=(job_id, video_path), daemon=True
-        )
+        app = current_app._get_current_object()
+
+        def _bg(app, job_id, video_path):
+            with app.app_context():
+                analyze_video_pure(job_id, video_path)
+
+        th = threading.Thread(target=_bg, args=(app, job_id, video_path), daemon=True)
         th.start()
 
         resp = make_response(

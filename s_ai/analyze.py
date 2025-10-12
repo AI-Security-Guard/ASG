@@ -1,4 +1,4 @@
-import os, sqlite3
+import os
 import cv2
 import json
 import sqlite3
@@ -21,6 +21,8 @@ from utils.utils import (
     BOX_FRAC_W,
     BOX_FRAC_H,
 )
+from models.analysis import Clip
+from database import db
 
 # 전역 설정/상수
 CLASS_NAMES: List[str] = ["normal", "assault"]
@@ -48,6 +50,11 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "jobs.db")
 
 
+# 썸네일 관련
+THUMB_DIR = "thumbnails"
+os.makedirs(THUMB_DIR, exist_ok=True)
+
+
 # DB 유틸 (최소 필드 + progress)
 def _db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=5.0)
@@ -69,11 +76,6 @@ def _get_jobs_columns():
 
 
 def db_upsert_job(job: Dict[str, Any]):
-    """
-    jobs 테이블에 존재하는 칼럼만 골라서 upsert.
-    예상 칼럼: job_id, video_path, status, progress, results, annotated_video, message
-    (없으면 자동으로 건너뜀)
-    """
     cols = _get_jobs_columns()
     cur = _DB_CONN.cursor()
 
@@ -81,11 +83,14 @@ def db_upsert_job(job: Dict[str, Any]):
     insert_vals = [job.get("job_id")]
     update_sets = []
 
-    def add(col: str, val: Any):
-        if col in cols:
-            insert_cols.append(col)
-            insert_vals.append(val)
-            update_sets.append(f"{col}=excluded.{col}")
+    def add(col: str, val: Any, *, skip_none: bool = False):
+        if col not in cols:
+            return
+        if skip_none and val is None:
+            return
+        insert_cols.append(col)
+        insert_vals.append(val)
+        update_sets.append(f"{col}=excluded.{col}")
 
     # 선택적으로 존재할 수 있는 컬럼들만 반영
     add("video_path", job.get("video_path") or "")
@@ -104,9 +109,9 @@ def db_upsert_job(job: Dict[str, Any]):
 
     # annotated_video / message 같은 칼럼도 있으면 반영
     if "annotated_video" in cols:
-        add("annotated_video", job.get("annotated_video"))
+        add("annotated_video", job.get("annotated_video"), skip_none=True)
     if "message" in cols:
-        add("message", job.get("message"))
+        add("message", job.get("message"), skip_none=True)
 
     placeholders = ", ".join(["?"] * len(insert_cols))
     columns_csv = ", ".join(insert_cols)
@@ -129,15 +134,6 @@ def db_upsert_job(job: Dict[str, Any]):
     _DB_CONN.commit()
 
 
-# def db_get_job(job_id: str) -> Dict[str, Any] | None:
-#     cur = _DB_CONN.cursor()
-#     cur.execute("SELECT payload FROM jobs WHERE job_id = ?", (job_id,))
-#     row = cur.fetchone()
-#     if not row:
-#         return None
-#     return json.loads(row[0])
-
-
 def db_get_job(job_id: str) -> Dict[str, Any] | None:
     cur = _DB_CONN.cursor()
     cols = _get_jobs_columns()
@@ -152,6 +148,7 @@ def db_get_job(job_id: str) -> Dict[str, Any] | None:
             "results",
             "annotated_video",
             "message",
+            "thumbnail",
         ]
         if c in cols
     ]
@@ -262,14 +259,13 @@ processing_jobs: Dict[str, Dict[str, Any]] = {}
 # 1패스 분석 + 주석영상 스트리밍 + 클립 동시 생성
 def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
     try:
-        # 초기 DB 스냅샷 (progress 포함)
         processing_jobs[job_id] = {
             "job_id": job_id,
             "status": "running",
             "progress": 0.0,
             "results": None,
             "video_path": video_path,
-            "annotated_video": annotated_path,
+            "annotated_video": None,
         }
         db_upsert_job(processing_jobs[job_id])
 
@@ -286,12 +282,79 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
 
         # 주석 영상 writer (원본 해상도)
         base_name = os.path.splitext(os.path.basename(video_path))[0]
-        annotated_path = os.path.join(ANNOTATED_DIR, f"{base_name}_analyze.mp4")
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        annot_writer = cv2.VideoWriter(annotated_path, fourcc, fps, (orig_w, orig_h))
-        if not annot_writer.isOpened():
-            cap.release()
-            raise RuntimeError(f"Failed to open VideoWriter: {annotated_path}")
+
+        # ✅ 안전한 VideoWriter 생성 함수 정의
+        from pathlib import Path
+
+        # ✅ 안전한 VideoWriter 생성 함수
+        def _safe_video_writer(
+            input_path, out_dir="analyzed_videos", fps_val=30.0, size=(640, 360)
+        ):
+            out_dir_path = Path(out_dir).resolve()
+            out_dir_path.mkdir(parents=True, exist_ok=True)
+
+            stem = Path(input_path).stem
+            mp4_path = out_dir_path / f"{stem}_analyze.mp4"
+            avi_path = out_dir_path / f"{stem}_analyze.avi"
+
+            tried = []
+            for fourcc_str, path in [("mp4v", mp4_path), ("avc1", mp4_path)]:
+                fourcc = cv2.VideoWriter_fourcc(*fourcc_str)
+                writer = cv2.VideoWriter(str(path), fourcc, fps_val, size)
+                tried.append((fourcc_str, str(path)))
+                if writer.isOpened():
+                    return writer, str(path)
+
+            for fourcc_str, path in [("MJPG", avi_path), ("XVID", avi_path)]:
+                fourcc = cv2.VideoWriter_fourcc(*fourcc_str)
+                writer = cv2.VideoWriter(str(path), fourcc, fps_val, size)
+                tried.append((fourcc_str, str(path)))
+                if writer.isOpened():
+                    return writer, str(path)
+
+            raise RuntimeError(
+                "Failed to open VideoWriter for any codec: " + str(tried)
+            )
+
+        # ✅ 클립용 VideoWriter 오프너 (mp4 → avi 순서)
+        def _open_clip_writer(
+            base_name: str, clip_idx: int, fps_val: float, size: tuple[int, int]
+        ):
+            out_dir_path = Path(CLIPS_DIR).resolve()
+            out_dir_path.mkdir(parents=True, exist_ok=True)
+
+            # 1) mp4 시도
+            name_mp4 = f"{base_name}_clip{clip_idx}.mp4"
+            path_mp4 = out_dir_path / name_mp4
+            for fourcc_str in ["mp4v", "avc1"]:
+                w = cv2.VideoWriter(
+                    str(path_mp4), cv2.VideoWriter_fourcc(*fourcc_str), fps_val, size
+                )
+                if w.isOpened():
+                    return w, str(path_mp4), name_mp4
+
+            # 2) avi 폴백
+            name_avi = f"{base_name}_clip{clip_idx}.avi"
+            path_avi = out_dir_path / name_avi
+            for fourcc_str in ["MJPG", "XVID"]:
+                w = cv2.VideoWriter(
+                    str(path_avi), cv2.VideoWriter_fourcc(*fourcc_str), fps_val, size
+                )
+                if w.isOpened():
+                    return w, str(path_avi), name_avi
+
+            raise RuntimeError("Failed to open clip writer for any codec")
+
+        # FPS 보정
+        if fps <= 0 or fps is None:
+            fps = 30.0
+
+        # ✅ 여기서 안전하게 VideoWriter 생성
+        annot_writer, annotated_path = _safe_video_writer(
+            video_path, ANNOTATED_DIR, fps, (orig_w, orig_h)
+        )
+
+        annotated_path = annotated_path.replace("\\", "/")
 
         # 2초 병합용 tol 프레임 수
         tol_frames = int(round((fps if fps > 0 else 30.0) * 2.0))
@@ -332,22 +395,47 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
         gap_buf = []  # 주석 프레임 임시 보관 (RAM)
         start_bbox_orig = None  # 새 클립 시작 bbox(원본 좌표)
 
-        def _open_clip(start_time_sec: float):
+        def _open_clip(start_time_sec: float, frame_for_thumb, box_for_thumb):
             nonlocal clip_id, active_clip
             clip_id += 1
-            name = f"{base_name}_clip{clip_id}.mp4"
-            path = os.path.join(CLIPS_DIR, name)
-            active_clip = cv2.VideoWriter(path, fourcc, fps, (orig_w, orig_h))
-            if not active_clip.isOpened():
-                raise RuntimeError(f"Failed to open clip writer: {path}")
+
+            # ✅ fourcc 없이 안전 생성기 사용
+            active_clip, clip_abs_path, clip_name = _open_clip_writer(
+                base_name, clip_id, fps, (orig_w, orig_h)
+            )
+            clip_abs_path = clip_abs_path.replace("\\", "/")  # 프론트 호환
+
+            # per-clip 썸네일 생성
+            thumb_path = os.path.join(THUMB_DIR, f"{base_name}_clip{clip_id}_thumb.jpg")
+            try:
+                if box_for_thumb:
+                    X1, Y1, X2, Y2 = box_for_thumb
+                    X1 = max(0, min(X1, orig_w - 1))
+                    X2 = max(0, min(X2, orig_w - 1))
+                    Y1 = max(0, min(Y1, orig_h - 1))
+                    Y2 = max(0, min(Y2, orig_h - 1))
+                    crop = frame_for_thumb[Y1:Y2, X1:X2].copy()
+                    img_for_thumb = crop if crop.size else frame_for_thumb
+                else:
+                    img_for_thumb = frame_for_thumb
+
+                ok = cv2.imwrite(
+                    thumb_path, img_for_thumb, [cv2.IMWRITE_JPEG_QUALITY, 90]
+                )
+                thumb_path = thumb_path.replace("\\", "/") if ok else None
+            except Exception:
+                thumb_path = None
+
+            # 결과 메타 (class_name/thumbnail 포함)
             clips_meta.append(
                 {
                     "clip_id": clip_id,
                     "class_name": active_class,
                     "start_time": _format_time_hhmmss(start_time_sec),
                     "start_bbox": start_bbox_orig,  # [x1,y1,x2,y2] or None
-                    "clip_name": name,
-                    "clip_path": path,
+                    "clip_name": clip_name,  # ✅ 새 이름 사용
+                    "clip_path": clip_abs_path,  # ✅ 절대경로/슬래시 정리된 경로
+                    "thumbnail": thumb_path,
                 }
             )
 
@@ -509,48 +597,59 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
 
                 # (B) 클립 상태머신 (2초 병합 유지)
                 cls_name = top1_name
-                if is_positive:
-                    if active_clip is None:
-                        # 새 클립 시작
-                        active_class = cls_name
-                        start_bbox_orig = box_orig
-                        _open_clip(start_time_sec=(fidx / fps if fps > 0 else 0.0))
-                        active_clip.write(frame_orig)
-                    else:
-                        if in_gap:
-                            # 같은 클래스 복귀 + gap ≤ tol → 버퍼 flush + 이어쓰기
-                            if (
-                                cls_name.lower() == active_class.lower()
-                                and len(gap_buf) <= tol_frames
-                            ):
-                                for fr in gap_buf:
-                                    active_clip.write(fr)
-                                gap_buf.clear()
-                                in_gap = False
-                                active_clip.write(frame_orig)
-                            else:
-                                # 다른 클래스 or tol 초과 → 이전 종료 후 새로
-                                _close_clip()
-                                active_class = cls_name
-                                start_bbox_orig = box_orig
-                                _open_clip(
-                                    start_time_sec=(fidx / fps if fps > 0 else 0.0)
-                                )
-                                active_clip.write(frame_orig)
+
+                if is_positive and active_clip is None:
+                    active_class = cls_name
+                    start_bbox_orig = box_orig
+                    _open_clip(
+                        start_time_sec=(fidx / fps if fps > 0 else 0.0),
+                        frame_for_thumb=frame_orig,
+                        box_for_thumb=box_orig,
+                    )
+                    active_clip.write(frame_orig)
+
+                elif is_positive:
+                    # 이미 녹화 중인 상태
+                    if in_gap:
+                        # 같은 클래스 복귀 + gap ≤ tol → 버퍼 flush + 이어쓰기
+                        if (
+                            cls_name.lower() == active_class.lower()
+                            and len(gap_buf) <= tol_frames
+                        ):
+                            for fr in gap_buf:
+                                active_clip.write(fr)
+                            gap_buf.clear()
+                            in_gap = False
+                            active_clip.write(frame_orig)
                         else:
-                            # 녹화 중 같은 클래스면 그대로
-                            if cls_name.lower() == active_class.lower():
-                                active_clip.write(frame_orig)
-                            else:
-                                # 클래스 변경 → 이전 종료, 새로 시작
-                                _close_clip()
-                                active_class = cls_name
-                                start_bbox_orig = box_orig
-                                _open_clip(
-                                    start_time_sec=(fidx / fps if fps > 0 else 0.0)
-                                )
-                                active_clip.write(frame_orig)
+                            # 다른 클래스 or tol 초과 → 이전 종료 후 새로 시작
+                            _close_clip()
+                            active_class = cls_name
+                            start_bbox_orig = box_orig
+                            _open_clip(
+                                start_time_sec=(fidx / fps if fps > 0 else 0.0),
+                                frame_for_thumb=frame_orig,
+                                box_for_thumb=box_orig,
+                            )
+                            active_clip.write(frame_orig)
+                    else:
+                        # gap 아닌 상태에서
+                        if cls_name.lower() == active_class.lower():
+                            active_clip.write(frame_orig)
+                        else:
+                            # 클래스 변경 → 이전 종료, 새로 시작
+                            _close_clip()
+                            active_class = cls_name
+                            start_bbox_orig = box_orig
+                            _open_clip(
+                                start_time_sec=(fidx / fps if fps > 0 else 0.0),
+                                frame_for_thumb=frame_orig,
+                                box_for_thumb=box_orig,
+                            )
+                            active_clip.write(frame_orig)
+
                 else:
+                    # 음성 프레임
                     if active_clip is not None:
                         # gap 진입/유지
                         if not in_gap:
@@ -605,14 +704,34 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
         cap.release()
 
         # 최종 결과 (progress=100) - DB 저장 + 동시에 return 할 객체
-        result_clips = clips_meta  # [{ clip_id, class_name, start_time, start_bbox, clip_name, clip_path }, ...]
+        result_clips = clips_meta
         processing_jobs[job_id] = {
             "job_id": job_id,
             "status": "done",
             "progress": 100.0,
             "results": result_clips,
             "video_path": video_path,
+            "annotated_video": annotated_path,
         }
+
+        for c in clips_meta:
+            bbox = c.get("start_bbox") or [None, None, None, None]
+            x1, y1, x2, y2 = bbox
+            clip = Clip(
+                job_id=job_id,
+                class_name=c["class_name"],  # ✅ 추가
+                start_time=c["start_time"],
+                start_x=x1,
+                start_y=y1,
+                start_w=(x2 - x1) if x1 is not None and x2 is not None else None,
+                start_h=(y2 - y1) if y1 is not None and y2 is not None else None,
+                clip_name=c["clip_name"],
+                clip_path=c["clip_path"],
+                thumbnail=c.get("thumbnail"),  # ✅ 추가
+            )
+            db.session.add(clip)
+
+        db.session.commit()
         db_upsert_job(processing_jobs[job_id])
 
         # ✅ 호출자에게도 결과를 즉시 반환

@@ -1,52 +1,3 @@
-# # models/analysis.py
-# from datetime import datetime
-# from database import db
-
-
-# class Job(db.Model):
-#     __tablename__ = "jobs"
-#     job_id = db.Column(db.String(36), primary_key=True)  # UUID 문자열
-#     video_path = db.Column(db.String, nullable=False)
-#     status = db.Column(
-#         db.String(20), nullable=False, default="running"
-#     )  # running | done | error
-#     progress = db.Column(db.Float, nullable=False, default=0.0)
-#     message = db.Column(db.String, nullable=True)  # 에러 메시지 등
-#     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-#     updated_at = db.Column(
-#         db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
-#     )
-
-#     clips = db.relationship(
-#         "Clip", backref="job", cascade="all, delete-orphan", lazy=True
-#     )
-
-
-# class Clip(db.Model):
-#     __tablename__ = "clips"
-#     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-#     job_id = db.Column(
-#         db.String(36), db.ForeignKey("jobs.job_id", ondelete="CASCADE"), nullable=False
-#     )
-
-#     class_name = db.Column(db.String(50), nullable=False)  # ex) "assault"
-#     start_time = db.Column(
-#         db.String(12), nullable=False
-#     )  # "HH:MM:SS" (원하면 Float(초) 컬럼 추가 가능)
-#     start_x = db.Column(db.Integer, nullable=True)
-#     start_y = db.Column(db.Integer, nullable=True)
-#     start_w = db.Column(db.Integer, nullable=True)
-#     start_h = db.Column(db.Integer, nullable=True)
-
-#     clip_name = db.Column(db.String, nullable=False)
-#     clip_path = db.Column(db.String, nullable=False)  # "event_clips/xxx.mp4"
-
-# models/analysis.py
-from sqlalchemy import Column, Integer, String, Text, Float, ForeignKey
-from sqlalchemy.orm import relationship
-from database import db
-
-
 # models/analysis.py
 from sqlalchemy import Column, Integer, String, Text, Float, ForeignKey
 from sqlalchemy.orm import relationship
@@ -55,14 +6,16 @@ from database import db
 
 class Job(db.Model):
     __tablename__ = "jobs"
+
     job_id = Column(String, primary_key=True)
     video_path = Column(Text, nullable=False)
     status = Column(
         String, nullable=False, default="queued"
     )  # queued|running|done|error
-    progress = Column(Float, nullable=False, default=0.0)  # 0.0 ~ 1.0
+    progress = Column(Float, nullable=False, default=0.0)  # 0.0 ~ 100.0 권장
     annotated_video = Column(Text, nullable=True)  # 결과 영상 경로
     message = Column(Text, nullable=True)  # (옵션) 에러/로그
+    # 🔁 더 이상 jobs 단위 썸네일은 사용하지 않음 (컬럼 제거)
 
     clips = relationship(
         "Clip",
@@ -75,25 +28,32 @@ class Job(db.Model):
 
 class Clip(db.Model):
     __tablename__ = "clips"
+
     id = Column(Integer, primary_key=True, autoincrement=True)  # -> clip_id
     job_id = Column(
         String, ForeignKey("jobs.job_id", ondelete="CASCADE"), nullable=False
     )
 
-    # 요청 예시: "00:00:12" 형태 그대로 저장
+    # 분류 결과 클래스 (예: "normal", "assault" …)
+    class_name = Column(String(50), nullable=False)
+
+    # "00:00:12" 형태로 저장
     start_time = Column(String(16), nullable=False)
 
-    # DB 저장은 (x, y, w, h)
+    # 시작 BBox (x, y, w, h) — 응답에서 [x1,y1,x2,y2]로 변환
     start_x = Column(Integer, nullable=True)
     start_y = Column(Integer, nullable=True)
     start_w = Column(Integer, nullable=True)
     start_h = Column(Integer, nullable=True)
 
     # 파일 정보
-    clip_name = Column(Text, nullable=True)
-    clip_path = Column(Text, nullable=True)
+    clip_name = Column(Text, nullable=False)
+    clip_path = Column(Text, nullable=False)
 
-    # ✅ 응답 변환용 헬퍼
+    # 클립별 썸네일 경로
+    thumbnail = Column(Text, nullable=True)
+
+    # API 응답 변환용
     def to_dict(self):
         start_bbox = None
         if (
@@ -108,8 +68,10 @@ class Clip(db.Model):
 
         return {
             "clip_id": self.id,
+            "class_name": self.class_name,
             "start_time": self.start_time,
-            "start_bbox": start_bbox,  # [x1,y1,x2,y2] 또는 null
+            "start_bbox": start_bbox,  # [x1,y1,x2,y2] or null
             "clip_name": self.clip_name,
             "clip_path": self.clip_path,
+            "thumbnail": self.thumbnail,
         }

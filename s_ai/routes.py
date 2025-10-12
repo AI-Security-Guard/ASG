@@ -1,11 +1,21 @@
 import os
 import uuid
 import threading
-from flask import Response, Blueprint, request, jsonify, make_response, abort, url_for
+from flask import (
+    send_file,
+    Response,
+    Blueprint,
+    request,
+    jsonify,
+    make_response,
+    abort,
+    url_for,
+)
 from analyze import (
     db_get_job,
 )
 from models.analysis import Job, Clip
+from analyze import THUMB_DIR
 from analyze import CLIPS_DIR
 from flask import current_app
 
@@ -141,15 +151,37 @@ def _send_mp4_partial(full_path: str):
     return resp
 
 
+@analyze_bp.route("/event_thumbs/<path:fname>", methods=["GET"])
+def serve_event_thumb(fname: str):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # ✅ 썸네일은 THUMB_DIR 기준!
+    thumbs_dir = THUMB_DIR
+    if not os.path.isabs(thumbs_dir):
+        thumbs_dir = os.path.join(base_dir, thumbs_dir)
+
+    # ../ 차단 + 정규화
+    safe = os.path.normpath(fname).replace("\\", "/")
+
+    # 클라이언트가 'thumbnails/파일명' 형태로 줄 때도 처리
+    if safe.startswith("thumbnails/"):
+        safe = safe.split("/", 1)[1]
+
+    full_path = os.path.join(thumbs_dir, safe)
+
+    if not os.path.exists(full_path):
+        return jsonify({"detail": f"thumbnail not found: {safe}"}), 404
+
+    return send_file(full_path, mimetype="image/jpeg")
+
+
 @analyze_bp.route("/event_clips/<path:fname>", methods=["GET"])
 def serve_event_clip(fname: str):
-    # routes.py 기준 절대경로로 변환
     base_dir = os.path.dirname(os.path.abspath(__file__))
     clips_dir = CLIPS_DIR
     if not os.path.isabs(clips_dir):
         clips_dir = os.path.join(base_dir, clips_dir)
 
-    # 보안: 상위 경로 차단
     safe = os.path.normpath(fname).replace("\\", "/")
     full_path = os.path.join(clips_dir, safe)
     return _send_mp4_partial(full_path)
@@ -171,12 +203,27 @@ def get_clips_by_job(job_id):
 
     for c in clips:
         d = c.to_dict()
+
+        # 1) 동영상 URL (기존 코드 유지)
         if d.get("clip_name"):
             d["clip_url"] = url_for(
                 "analyze.serve_event_clip", fname=d["clip_name"], _external=False
             )
         else:
             d["clip_url"] = None
+
+        # 2) ✅ 썸네일 URL 추가 (여기에 넣기)
+        thumb_name = d.get("thumbnail") or d.get("thumb_path")
+        if thumb_name:
+            from os.path import basename
+
+            # 'thumbnails/xxx.jpg'처럼 들어오면 파일명만 추출해서 라우트에 전달
+            d["thumb_url"] = url_for(
+                "analyze.serve_event_thumb", fname=basename(thumb_name), _external=False
+            )
+        else:
+            d["thumb_url"] = None
+
         result["clips"].append(d)
 
     return jsonify(result), 200

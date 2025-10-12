@@ -1,22 +1,18 @@
 import os
 import uuid
 import threading
-from flask import Response, Blueprint, request, jsonify, make_response, abort
+from flask import Response, Blueprint, request, jsonify, make_response, abort, url_for
 from analyze import (
-    model,
-    processing_jobs,
-    analyze_video_pure,
-    db_upsert_job,
     db_get_job,
-)  # 안전하게 재확인 import
-
+)
+from models.analysis import Job, Clip
 from analyze import CLIPS_DIR
 from flask import current_app
 
 analyze_bp = Blueprint("analyze", __name__)
 
 
-# routes.py
+# 분석하기
 @analyze_bp.route("/analyze", methods=["POST"])
 def analyze_video():
     try:
@@ -100,6 +96,7 @@ def analyze_video():
         return jsonify({"detail": "Internal Server Error", "error": str(e)}), 500
 
 
+# 진행도 확인
 @analyze_bp.route("/jobs/<job_id>", methods=["GET"])
 def get_job(job_id: str):
     job = db_get_job(job_id)
@@ -156,3 +153,30 @@ def serve_event_clip(fname: str):
     safe = os.path.normpath(fname).replace("\\", "/")
     full_path = os.path.join(clips_dir, safe)
     return _send_mp4_partial(full_path)
+
+
+@analyze_bp.route("/jobs/<job_id>/clips", methods=["GET"])
+def get_clips_by_job(job_id):
+    job = Job.query.filter_by(job_id=job_id).first()
+    if not job:
+        return jsonify({"detail": "Job not found"}), 404
+
+    clips = Clip.query.filter_by(job_id=job_id).order_by(Clip.start_time).all()
+    result = {
+        "job_id": job.job_id,
+        "video_path": job.video_path,
+        "count": len(clips),
+        "clips": [],
+    }
+
+    for c in clips:
+        d = c.to_dict()
+        if d.get("clip_name"):
+            d["clip_url"] = url_for(
+                "analyze.serve_event_clip", fname=d["clip_name"], _external=False
+            )
+        else:
+            d["clip_url"] = None
+        result["clips"].append(d)
+
+    return jsonify(result), 200

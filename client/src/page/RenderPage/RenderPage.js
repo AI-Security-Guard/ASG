@@ -110,6 +110,7 @@ function RenderPage() {
                     const videoURL = URL.createObjectURL(blob);
                     setVideoSrc(videoURL);
                 }
+                console.log(response);
             } catch (err) {
                 console.error(err);
             }

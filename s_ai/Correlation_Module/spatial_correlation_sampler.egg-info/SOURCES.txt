@@ -1,7 +1,9 @@
+LICENSE
 README.md
 setup.py
 setup_cpu.py
 Correlation_Module/correlation.cpp
+Correlation_Module/correlation_cuda_kernel.cu
 Correlation_Module/correlation_sampler.cpp
 Correlation_Module/spatial_correlation_sampler/__init__.py
 Correlation_Module/spatial_correlation_sampler/spatial_correlation_sampler.py

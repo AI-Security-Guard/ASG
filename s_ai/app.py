@@ -2,6 +2,7 @@ import os
 from flask import Flask
 from database import db
 from flask_cors import CORS
+from routes import analyze_bp
 
 
 def create_app():

@@ -21,24 +21,24 @@ import { useNavigate } from "react-router-dom";
 function ListPage() {
     const navigate = useNavigate();
     const [entries, setEntries] = useState([]);
-    const [jobId, setJobId] = useState(() => localStorage.getItem("jobId"));
-
+    const jobId = localStorage.getItem("jobId");
+    console.log("efef" + jobId);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 8;
-    const jobId1 = "1c995028-173f-4b0d-a5cb-10baa4203a40";
+    const jobId1 = "868447d3-0e23-4307-9e90-e27634199275";
     const API_BASE = "http://127.0.0.1:5001";
-
     useEffect(() => {
-        if (!jobId1) return;
+        if (!jobId) return;
 
         (async () => {
-            const res = await fetch(`${API_BASE}/jobs/${jobId1}/clips`);
+            const res = await fetch(`${API_BASE}/jobs/${jobId}/clips`);
             if (!res.ok) {
                 console.error("Failed to fetch clips", res.status);
                 return;
             }
 
             const data = await res.json();
+            console.log(data);
             const mapped = (data.clips || []).map((c, i) => ({
                 id: c.clip_id ?? i,
                 date: c.start_time ?? "",
@@ -65,7 +65,7 @@ function ListPage() {
     const unconfirmedCount = entries.filter((entry) => !entry.checked).length;
 
     const handleClick = (entry) => {
-        navigate("/Detail", { state: entry });
+        navigate(`/Detail/${entry.id}`, { state: entry });
     };
 
     return (

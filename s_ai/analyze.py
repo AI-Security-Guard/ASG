@@ -1,3 +1,4 @@
+import subprocess, shutil
 import os
 import cv2
 import json
@@ -67,6 +68,37 @@ def _db():
 
 
 _DB_CONN = _db()
+
+
+def _faststart_remux(in_path: str):
+    """mp4 컨테이너 메타데이터(moov)를 앞쪽으로 옮겨 스트리밍/브라우저 호환성 확보"""
+    try:
+        if not in_path or not in_path.lower().endswith(".mp4"):
+            return
+        if not shutil.which("ffmpeg"):
+            return  # ffmpeg 없으면 조용히 패스 (크래시 방지)
+
+        tmp = in_path[:-4] + "_fs.mp4"
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            in_path,
+            "-c",
+            "copy",
+            "-movflags",
+            "+faststart",
+            tmp,
+        ]
+        subprocess.run(
+            cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+
+        # 성공하면 원본 교체
+        os.replace(tmp, in_path)
+    except Exception:
+        # 실패해도 분석 흐름은 유지
+        pass
 
 
 # analyze.py 상단 DB 유틸 근처에 추가
@@ -258,6 +290,7 @@ processing_jobs: Dict[str, Dict[str, Any]] = {}
 
 # 1패스 분석 + 주석영상 스트리밍 + 클립 동시 생성
 def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
+    current_clip_path = None
     try:
         processing_jobs[job_id] = {
             "job_id": job_id,
@@ -396,7 +429,7 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
         start_bbox_orig = None  # 새 클립 시작 bbox(원본 좌표)
 
         def _open_clip(start_time_sec: float, frame_for_thumb, box_for_thumb):
-            nonlocal clip_id, active_clip
+            nonlocal clip_id, active_clip, current_clip_path
             clip_id += 1
 
             # ✅ fourcc 없이 안전 생성기 사용
@@ -404,7 +437,7 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
                 base_name, clip_id, fps, (orig_w, orig_h)
             )
             clip_abs_path = clip_abs_path.replace("\\", "/")  # 프론트 호환
-
+            current_clip_path = clip_abs_path
             # per-clip 썸네일 생성
             thumb_path = os.path.join(THUMB_DIR, f"{base_name}_clip{clip_id}_thumb.jpg")
             try:
@@ -440,10 +473,15 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
             )
 
         def _close_clip():
-            nonlocal active_clip, in_gap, gap_buf, start_bbox_orig
+            nonlocal active_clip, in_gap, gap_buf, start_bbox_orig, current_clip_path  # ← current_clip_path 추가
             if active_clip and active_clip.isOpened():
                 active_clip.release()
+                try:
+                    _faststart_remux(current_clip_path)
+                except Exception:
+                    pass
             active_clip = None
+            current_clip_path = None
             in_gap = False
             gap_buf.clear()
             start_bbox_orig = None
@@ -701,6 +739,7 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
 
         # writer/캡쳐 정리
         annot_writer.release()
+        _faststart_remux(annotated_path)
         cap.release()
 
         # 최종 결과 (progress=100) - DB 저장 + 동시에 return 할 객체

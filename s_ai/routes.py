@@ -112,8 +112,58 @@ def get_job(job_id: str):
     job = db_get_job(job_id)
     if not job:
         return jsonify({"detail": "Job not found"}), 404
+    clips = Clip.query.filter_by(job_id=job_id).order_by(Clip.start_time).all()
 
-    return jsonify(job)
+    def _bbox_from(c: Clip):
+        if (
+            c.start_x is None
+            or c.start_y is None
+            or c.start_w is None
+            or c.start_h is None
+        ):
+            return None
+        x1, y1 = c.start_x, c.start_y
+        x2, y2 = x1 + c.start_w, y1 + c.start_h
+        return [x1, y1, x2, y2]
+
+    result_list = []
+    for c in clips:
+        d = c.to_dict() if hasattr(c, "to_dict") else {}
+        clip_name = getattr(c, "clip_name", None)
+        thumb_path = getattr(c, "thumbnail", None)
+
+        clip_url = (
+            url_for("analyze.serve_event_clip", fname=clip_name, _external=False)
+            if clip_name
+            else None
+        )
+
+        # 썸네일은 파일명만 빼서 /event_thumbs/<fname>로 서빙
+        thumb_url = None
+        if thumb_path:
+            from os.path import basename
+
+            thumb_url = url_for(
+                "analyze.serve_event_thumb", fname=basename(thumb_path), _external=False
+            )
+
+        result_list.append(
+            {
+                "clip_id": c.id,
+                "class_name": c.class_name,
+                "start_time": c.start_time,  # "00:00:12"
+                "bbox": _bbox_from(c),  # [x1, y1, x2, y2] 또는 null
+                "clip_url": clip_url,  # "/event_clips/xxx.mp4"
+                "thumbnail": thumb_url,  # "/event_thumbs/xxx.jpg" 또는 null
+            }
+        )
+
+    # 응답 모양 맞추기: result 키로 내려주고, 기존의 results 키는 제거
+    resp = dict(job)
+    resp.pop("results", None)  # 혹시 jobs.results가 있어도 숨김
+    resp["result"] = result_list
+
+    return jsonify(resp), 200
 
 
 def _send_mp4_partial(full_path: str):
@@ -178,13 +228,12 @@ def serve_event_thumb(fname: str):
 @analyze_bp.route("/event_clips/<path:fname>", methods=["GET"])
 def serve_event_clip(fname: str):
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    clips_dir = CLIPS_DIR
-    if not os.path.isabs(clips_dir):
-        clips_dir = os.path.join(base_dir, clips_dir)
-
+    clips_dir = (
+        CLIPS_DIR if os.path.isabs(CLIPS_DIR) else os.path.join(base_dir, CLIPS_DIR)
+    )
     safe = os.path.normpath(fname).replace("\\", "/")
     full_path = os.path.join(clips_dir, safe)
-    return _send_mp4_partial(full_path)
+    return _send_mp4_partial(full_path)  # ← Range 지원
 
 
 @analyze_bp.route("/jobs/<job_id>/clips", methods=["GET"])

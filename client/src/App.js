@@ -20,7 +20,7 @@ function App() {
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/" element={<MainPage />} />
                         <Route path="/List" element={<ListPage />} />
-                        <Route path="/Detail" element={<DetailPage />} />
+                        <Route path="/Detail/:clipId" element={<DetailPage />} />
                         <Route path="/termspage" element={<TermsPage />} />
                         <Route path="/register" element={<RegisterPage />} />
                         <Route path="/render" element={<RenderPage />} />

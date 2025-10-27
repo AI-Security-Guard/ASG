@@ -21,37 +21,38 @@ import { useNavigate } from "react-router-dom";
 function ListPage() {
     const navigate = useNavigate();
     const [entries, setEntries] = useState([]);
-    const [jobId, setJobId] = useState(() => localStorage.getItem("jobId")); // ✅
-
+    const jobId = localStorage.getItem("jobId");
+    console.log("efef" + jobId);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 8;
-    const jobId1 = "d57abdec-8dcb-4bd7-a282-12f1a8a8f9a7";
+    const jobId1 = "868447d3-0e23-4307-9e90-e27634199275";
     const API_BASE = "http://127.0.0.1:5001";
-
     useEffect(() => {
-        fetch(`${API_BASE}/jobs/${jobId}`)
-            .then((r) => r.json())
-            .then((data) => {
-                console.log("jobs payload:", data);
+        if (!jobId) return;
 
-                const clips = data?.results?.clips_info?.clips || [];
-                console.log("clips:", clips);
+        (async () => {
+            const res = await fetch(`${API_BASE}/jobs/${jobId}/clips`);
+            if (!res.ok) {
+                console.error("Failed to fetch clips", res.status);
+                return;
+            }
 
-                // ✅ Detail에서 쓸 모든 필드를 entries에 저장
-                const mapped = clips.map((c, i) => ({
-                    id: c.clip_id ?? i,
-                    date: c.start_time,
-                    message: c.class_name === "assault" ? "폭행" : c.class_name,
-                    checked: false,
-                    clipPath: c.clip_path ? c.clip_path.replace(/\\/g, "/") : "",
-                    thumbPath: c.thumb_path,
-                    start_bbox: c.start_bbox, // ✅ bbox 추가
-                }));
+            const data = await res.json();
+            console.log(data);
+            const mapped = (data.clips || []).map((c, i) => ({
+                id: c.clip_id ?? i,
+                date: c.start_time ?? "",
+                message: c.class_name === "assault" ? "폭행" : c.class_name ?? "",
+                checked: false,
+                clipPath: (c.clip_path || "").replace(/\\/g, "/"),
+                thumbPath: c.thumb_url || "",
+                start_bbox: c.start_bbox || c.bbox || null,
+                clipUrl: c.clip_url || "",
+            }));
 
-                setEntries(mapped);
-            })
-            .catch((e) => console.error(e));
-    }, [jobId]);
+            setEntries(mapped);
+        })().catch((e) => console.error(e));
+    }, [API_BASE, jobId1]);
 
     const handlePageChange = (event, page) => {
         setCurrentPage(page);
@@ -64,7 +65,7 @@ function ListPage() {
     const unconfirmedCount = entries.filter((entry) => !entry.checked).length;
 
     const handleClick = (entry) => {
-        navigate("/Detail", { state: entry });
+        navigate(`/Detail/${entry.id}`, { state: entry });
     };
 
     return (

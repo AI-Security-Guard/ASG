@@ -1,64 +1,77 @@
-from datetime import datetime
-import uuid
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import JSON
+# models/analysis.py
+from sqlalchemy import Column, Integer, String, Text, Float, ForeignKey
+from sqlalchemy.orm import relationship
 from database import db
-
-
-def _uuid():
-    return str(uuid.uuid4())
-
-
-def _json_type():
-    try:
-        eng = db.engine
-        if eng and eng.url.drivername.startswith("postgres"):
-            return JSONB
-    except Exception:
-        pass
-    return JSON
-
-
-JSONType = _json_type()
 
 
 class Job(db.Model):
     __tablename__ = "jobs"
-    id = db.Column(db.String(36), primary_key=True, default=_uuid)
-    video_path = db.Column(db.String(1024), nullable=True)
-    status = db.Column(db.String(20), nullable=False, default="queued")
-    progress = db.Column(db.Float, nullable=False, default=0.0)
-    error_message = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = db.Column(
-        db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+
+    job_id = Column(String, primary_key=True)
+    video_path = Column(Text, nullable=False)
+    status = Column(
+        String, nullable=False, default="queued"
+    )  # queued|running|done|error
+    progress = Column(Float, nullable=False, default=0.0)  # 0.0 ~ 100.0 권장
+    annotated_video = Column(Text, nullable=True)  # 결과 영상 경로
+    message = Column(Text, nullable=True)  # (옵션) 에러/로그
+    # 🔁 더 이상 jobs 단위 썸네일은 사용하지 않음 (컬럼 제거)
+
+    clips = relationship(
+        "Clip",
+        backref="job",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
-    clips = db.relationship(
-        "ClipSummary", backref="job", lazy=True, cascade="all, delete-orphan"
+
+class Clip(db.Model):
+    __tablename__ = "clips"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)  # -> clip_id
+    job_id = Column(
+        String, ForeignKey("jobs.job_id", ondelete="CASCADE"), nullable=False
     )
 
+    # 분류 결과 클래스 (예: "normal", "assault" …)
+    class_name = Column(String(50), nullable=False)
 
-class ClipSummary(db.Model):
-    __tablename__ = "clip_summaries"
-    id = db.Column(db.Integer, primary_key=True)
-    job_id = db.Column(db.String(36), db.ForeignKey("jobs.id"), nullable=False)
+    # "00:00:12" 형태로 저장
+    start_time = Column(String(16), nullable=False)
 
-    frame_start = db.Column(db.Integer, nullable=True)
-    frame_end = db.Column(db.Integer, nullable=True)
+    # 시작 BBox (x, y, w, h) — 응답에서 [x1,y1,x2,y2]로 변환
+    start_x = Column(Integer, nullable=True)
+    start_y = Column(Integer, nullable=True)
+    start_w = Column(Integer, nullable=True)
+    start_h = Column(Integer, nullable=True)
 
-    start_sec = db.Column(db.Float, nullable=True)
-    end_sec = db.Column(db.Float, nullable=True)
+    # 파일 정보
+    clip_name = Column(Text, nullable=False)
+    clip_path = Column(Text, nullable=False)
 
-    class_name = db.Column(db.String(64), nullable=False)
-    score = db.Column(db.Float, nullable=True)
+    # 클립별 썸네일 경로
+    thumbnail = Column(Text, nullable=True)
 
-    bbox = db.Column(JSONType, nullable=True)
-    meta = db.Column(JSONType, nullable=True)
+    # API 응답 변환용
+    def to_dict(self):
+        start_bbox = None
+        if (
+            self.start_x is not None
+            and self.start_y is not None
+            and self.start_w is not None
+            and self.start_h is not None
+        ):
+            x1, y1 = self.start_x, self.start_y
+            x2, y2 = self.start_x + self.start_w, self.start_y + self.start_h
+            start_bbox = [x1, y1, x2, y2]
 
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-
-    __table_args__ = (
-        db.Index("ix_clip_job", "job_id"),
-        db.Index("ix_clip_start_sec", "start_sec"),
-    )
+        return {
+            "clip_id": self.id,
+            "class_name": self.class_name,
+            "start_time": self.start_time,
+            "start_bbox": start_bbox,  # [x1,y1,x2,y2] or null
+            "clip_name": self.clip_name,
+            "clip_path": self.clip_path,
+            "thumbnail": self.thumbnail,
+        }

@@ -1,117 +1,169 @@
 import os
 import uuid
 import threading
-from flask import Response, Blueprint, request, jsonify, make_response, abort
-from analyze import (
-    model,
-    processing_jobs,
-    analyze_video_pure,
-    db_get_job,
-    db_upsert_job,
+from flask import (
+    send_file,
+    Response,
+    Blueprint,
+    request,
+    jsonify,
+    make_response,
+    abort,
+    url_for,
 )
+from analyze import (
+    db_get_job,
+)
+from models.analysis import Job, Clip
+from analyze import THUMB_DIR
 from analyze import CLIPS_DIR
+from flask import current_app
 
 analyze_bp = Blueprint("analyze", __name__)
 
 
+# 분석하기
 @analyze_bp.route("/analyze", methods=["POST"])
 def analyze_video():
-    data = request.get_json(silent=True) or {}
-    video_path = data.get("video_path")
+    try:
+        data = request.get_json(silent=True) or {}
+        video_path = data.get("video_path")
 
-    if model is None:
-        job_id = str(uuid.uuid4())
-        payload = {"job_id": job_id, "results": None}
-        db_upsert_job(payload)
-        return make_response(
-            jsonify({"job_id": job_id, "detail": "Model not loaded"}), 503
-        )
+        from analyze import (
+            model,
+            processing_jobs,
+            analyze_video_pure,
+            db_upsert_job,
+        )  # 안전하게 재확인 import
 
-    if not video_path or not os.path.exists(video_path):
+        if model is None:
+            job_id = str(uuid.uuid4())
+            # 최소 필드로 스냅샷 저장 (status=error, message 활용)
+            db_upsert_job(
+                {
+                    "job_id": job_id,
+                    "status": "error",
+                    "progress": 0.0,
+                    "message": "Model not loaded",
+                }
+            )
+            return make_response(
+                jsonify({"job_id": job_id, "detail": "Model not loaded"}), 503
+            )
+
+        if not video_path or not os.path.exists(video_path):
+            job_id = str(uuid.uuid4())
+            db_upsert_job(
+                {
+                    "job_id": job_id,
+                    "status": "error",
+                    "progress": 0.0,
+                    "video_path": video_path or "",
+                    "message": f"Video file not found: {video_path}",
+                }
+            )
+            return make_response(
+                jsonify(
+                    {"job_id": job_id, "detail": f"Video file not found: {video_path}"}
+                ),
+                404,
+            )
+
         job_id = str(uuid.uuid4())
-        payload = {"job_id": job_id, "results": None}
-        db_upsert_job(payload)
-        return make_response(
+        processing_jobs[job_id] = {
+            "job_id": job_id,
+            "status": "running",
+            "progress": 0.0,
+            "results": None,
+            "video_path": video_path,
+        }
+        db_upsert_job(processing_jobs[job_id])
+
+        app = current_app._get_current_object()
+
+        def _bg(app, job_id, video_path):
+            with app.app_context():
+                analyze_video_pure(job_id, video_path)
+
+        th = threading.Thread(target=_bg, args=(app, job_id, video_path), daemon=True)
+        th.start()
+
+        resp = make_response(
             jsonify(
-                {"job_id": job_id, "detail": f"Video file not found: {video_path}"}
+                {"job_id": job_id, "status": "running", "progress": 0, "results": None}
             ),
-            404,
+            202,
         )
+        resp.headers["Location"] = f"/jobs/{job_id}"
+        return resp
 
-    # 항상 비동기: 초기 payload 저장(최소)
-    job_id = str(uuid.uuid4())
-    processing_jobs[job_id] = {"job_id": job_id, "results": None}
-    db_upsert_job(processing_jobs[job_id])
+    except Exception as e:
+        # 콘솔에도 출력
+        import traceback
 
-    th = threading.Thread(
-        target=analyze_video_pure, args=(job_id, video_path), daemon=True
-    )
-    th.start()
-
-    resp = make_response(jsonify({"job_id": job_id}), 202)
-    resp.headers["Location"] = f"/jobs/{job_id}"
-    return resp
+        traceback.print_exc()
+        # 프론트로 상세를 내려줌
+        return jsonify({"detail": "Internal Server Error", "error": str(e)}), 500
 
 
+# 진행도 확인
 @analyze_bp.route("/jobs/<job_id>", methods=["GET"])
 def get_job(job_id: str):
     job = db_get_job(job_id)
     if not job:
         return jsonify({"detail": "Job not found"}), 404
+    clips = Clip.query.filter_by(job_id=job_id).order_by(Clip.start_time).all()
 
-    # 'eresults' 오타 보정
-    if "eresults" in job and "results" not in job:
-        job["results"] = job.pop("eresults")
+    def _bbox_from(c: Clip):
+        if (
+            c.start_x is None
+            or c.start_y is None
+            or c.start_w is None
+            or c.start_h is None
+        ):
+            return None
+        x1, y1 = c.start_x, c.start_y
+        x2, y2 = x1 + c.start_w, y1 + c.start_h
+        return [x1, y1, x2, y2]
 
-    res = job.get("results") or {}
+    result_list = []
+    for c in clips:
+        d = c.to_dict() if hasattr(c, "to_dict") else {}
+        clip_name = getattr(c, "clip_name", None)
+        thumb_path = getattr(c, "thumbnail", None)
 
-    # DB에 clips_info가 없으면 clips_info_json 파일을 읽어 주입
-    if "clips_info" not in res:
-        info_path = res.get("clips_info_json")
-        if info_path:
-            try:
-                import os, json
+        clip_url = (
+            url_for("analyze.serve_event_clip", fname=clip_name, _external=False)
+            if clip_name
+            else None
+        )
 
-                # 역슬래시 → OS 구분자로 통일
-                norm = info_path.replace("\\", os.sep)
-                # 후보 경로들 (존재하는 것 찾으면 사용)
-                base_dir = os.path.dirname(os.path.abspath(__file__))  # routes.py 기준
-                cwd_dir = os.getcwd()  # 현재 작업 디렉토리
-                candidates = []
-                # 절대경로면 그 자체, 아니면 base_dir/cwd_dir 기준 상대경로
-                if os.path.isabs(norm):
-                    candidates.append(norm)
-                else:
-                    candidates.append(os.path.join(base_dir, norm))
-                    candidates.append(os.path.join(cwd_dir, norm))
+        # 썸네일은 파일명만 빼서 /event_thumbs/<fname>로 서빙
+        thumb_url = None
+        if thumb_path:
+            from os.path import basename
 
-                abs_path = None
-                for c in candidates:
-                    if os.path.exists(c):
-                        abs_path = c
-                        break
+            thumb_url = url_for(
+                "analyze.serve_event_thumb", fname=basename(thumb_path), _external=False
+            )
 
-                if abs_path is None:
-                    raise FileNotFoundError(
-                        f"clips_info_json not found. tried={candidates}"
-                    )
+        result_list.append(
+            {
+                "clip_id": c.id,
+                "class_name": c.class_name,
+                "start_time": c.start_time,  # "00:00:12"
+                "bbox": _bbox_from(c),  # [x1, y1, x2, y2] 또는 null
+                "clip_url": clip_url,  # "/event_clips/xxx.mp4"
+                "thumbnail": thumb_url,  # "/event_thumbs/xxx.jpg" 또는 null
+            }
+        )
 
-                with open(abs_path, "r", encoding="utf-8") as f:
-                    res["clips_info"] = json.load(f)
+    # 응답 모양 맞추기: result 키로 내려주고, 기존의 results 키는 제거
+    resp = dict(job)
+    resp.pop("results", None)  # 혹시 jobs.results가 있어도 숨김
+    resp["result"] = result_list
 
-                job["results"] = res
-                # 디버그 힌트 (원하면 지워도 됨)
-                job["_debug"] = {
-                    "cwd": cwd_dir,
-                    "base_dir": base_dir,
-                    "chosen_path": abs_path,
-                }
-
-            except Exception as e:
-                job.setdefault("_warn", {})["clips_info_load"] = str(e)
-                job.setdefault("_warn", {})["clips_info_json"] = info_path
-
-    return jsonify(job)
+    return jsonify(resp), 200
 
 
 def _send_mp4_partial(full_path: str):
@@ -149,15 +201,78 @@ def _send_mp4_partial(full_path: str):
     return resp
 
 
+@analyze_bp.route("/event_thumbs/<path:fname>", methods=["GET"])
+def serve_event_thumb(fname: str):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # ✅ 썸네일은 THUMB_DIR 기준!
+    thumbs_dir = THUMB_DIR
+    if not os.path.isabs(thumbs_dir):
+        thumbs_dir = os.path.join(base_dir, thumbs_dir)
+
+    # ../ 차단 + 정규화
+    safe = os.path.normpath(fname).replace("\\", "/")
+
+    # 클라이언트가 'thumbnails/파일명' 형태로 줄 때도 처리
+    if safe.startswith("thumbnails/"):
+        safe = safe.split("/", 1)[1]
+
+    full_path = os.path.join(thumbs_dir, safe)
+
+    if not os.path.exists(full_path):
+        return jsonify({"detail": f"thumbnail not found: {safe}"}), 404
+
+    return send_file(full_path, mimetype="image/jpeg")
+
+
 @analyze_bp.route("/event_clips/<path:fname>", methods=["GET"])
 def serve_event_clip(fname: str):
-    # routes.py 기준 절대경로로 변환
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    clips_dir = CLIPS_DIR
-    if not os.path.isabs(clips_dir):
-        clips_dir = os.path.join(base_dir, clips_dir)
-
-    # 보안: 상위 경로 차단
+    clips_dir = (
+        CLIPS_DIR if os.path.isabs(CLIPS_DIR) else os.path.join(base_dir, CLIPS_DIR)
+    )
     safe = os.path.normpath(fname).replace("\\", "/")
     full_path = os.path.join(clips_dir, safe)
-    return _send_mp4_partial(full_path)
+    return _send_mp4_partial(full_path)  # ← Range 지원
+
+
+@analyze_bp.route("/jobs/<job_id>/clips", methods=["GET"])
+def get_clips_by_job(job_id):
+    job = Job.query.filter_by(job_id=job_id).first()
+    if not job:
+        return jsonify({"detail": "Job not found"}), 404
+
+    clips = Clip.query.filter_by(job_id=job_id).order_by(Clip.start_time).all()
+    result = {
+        "job_id": job.job_id,
+        "video_path": job.video_path,
+        "count": len(clips),
+        "clips": [],
+    }
+
+    for c in clips:
+        d = c.to_dict()
+
+        # 1) 동영상 URL (기존 코드 유지)
+        if d.get("clip_name"):
+            d["clip_url"] = url_for(
+                "analyze.serve_event_clip", fname=d["clip_name"], _external=False
+            )
+        else:
+            d["clip_url"] = None
+
+        # 2) ✅ 썸네일 URL 추가 (여기에 넣기)
+        thumb_name = d.get("thumbnail") or d.get("thumb_path")
+        if thumb_name:
+            from os.path import basename
+
+            # 'thumbnails/xxx.jpg'처럼 들어오면 파일명만 추출해서 라우트에 전달
+            d["thumb_url"] = url_for(
+                "analyze.serve_event_thumb", fname=basename(thumb_name), _external=False
+            )
+        else:
+            d["thumb_url"] = None
+
+        result["clips"].append(d)
+
+    return jsonify(result), 200

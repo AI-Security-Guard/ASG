@@ -1,25 +1,27 @@
 import * as D from "./Detail.style.js";
 import Header from "../../component/Header/Header.js";
 import ShortButton from "../../component/ShortButton/ShortButton.js";
-import React from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 
 const API_BASE = "http://127.0.0.1:5001";
 
 function DetailPage() {
     const navigate = useNavigate();
-    const { state: entry } = useLocation();
+    const { clipId } = useParams();
+    const { state: entryFromState } = useLocation();
+    const [entry, setEntry] = useState(entryFromState || null);
 
     const toWebPath = (p) => (typeof p === "string" ? p.replace(/\\/g, "/") : p);
     const joinURL = (base, path) => `${base.replace(/\/$/, "")}/${(path || "").replace(/^\//, "")}`;
-
-    const videoPath = entry?.clipPath ? joinURL(API_BASE, toWebPath(entry.clipPath)) : null;
-
-    const posterPath = entry?.thumbPath ? joinURL(API_BASE, toWebPath(entry.thumbPath)) : "/image/default.png";
+    const clipRel = entry?.clipUrl ?? entry?.clipPath ?? entry?.clip_url ?? entry?.clip ?? null;
+    const thumbRel = entry?.thumbPath ?? entry?.thumb_url ?? entry?.thumb ?? null;
+    const videoPath = clipRel ? joinURL(API_BASE, toWebPath(clipRel)) : null;
+    const posterPath = thumbRel ? joinURL(API_BASE, toWebPath(thumbRel)) : "/image/default.png";
 
     const occurredAt = entry?.date ?? "알 수 없음";
     const type = entry?.message ?? "알 수 없음";
-    const coordinate = entry.start_bbox ?? "-";
+    const coordinate = entry?.start_bbox ?? "-";
     const startBBox = entry?.start_bbox;
 
     let coordinateText = "-";
@@ -33,6 +35,31 @@ function DetailPage() {
     console.log("videoPath:", videoPath);
     console.log("posterPath:", posterPath);
 
+    useEffect(() => {
+        if (entry) return;
+        const jobId = localStorage.getItem("jobId");
+        if (!jobId) return;
+        (async () => {
+            try {
+                const res = await fetch(`${API_BASE}/jobs/${jobId}/clips`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const found = (data.clips || []).find((c) => String(c.clip_id) === String(clipId));
+                if (!found) return;
+                setEntry({
+                    id: found.clip_id,
+                    date: found.start_time ?? "",
+                    message: found.class_name === "assault" ? "폭행" : found.class_name ?? "",
+                    start_bbox: found.start_bbox || found.bbox || null,
+                    clipUrl: found.clip_url ?? found.clip_path ?? found.clip ?? found.clipl ?? "",
+                    thumbPath: found.thumb_url ?? found.thumb ?? "",
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        })();
+    }, [entry, clipId]);
+
     return (
         <>
             <D.DetailContainer>
@@ -40,14 +67,13 @@ function DetailPage() {
                 <D.Container>
                     <D.Detail>
                         <D.TempVideo
+                            key={videoPath}
                             controls
                             preload="metadata"
                             poster={posterPath}
-                            src={videoPath} // ✅ 이걸 직접 넣어주세요
-                        >
-                            해당 브라우저는 동영상을 지원하지 않습니다.
-                        </D.TempVideo>
-
+                            src={videoPath || undefined}
+                            crossOrigin="anonymous"
+                        />
                         <D.DetailContent>
                             <D.Date>발생시기: {occurredAt}</D.Date>
                             <D.Type>수상행동 유형: {type}</D.Type>

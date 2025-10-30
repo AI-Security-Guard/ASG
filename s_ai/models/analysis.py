@@ -2,6 +2,7 @@
 from sqlalchemy import Column, Integer, String, Text, Float, ForeignKey
 from sqlalchemy.orm import relationship
 from database import db
+from sqlalchemy import text
 
 
 class Job(db.Model):
@@ -36,7 +37,9 @@ class Clip(db.Model):
 
     # 분류 결과 클래스 (예: "normal", "assault" …)
     class_name = Column(String(50), nullable=False)
-
+    checked = db.Column(
+        db.Boolean, nullable=False, default=False, server_default=text("0")
+    )
     # "00:00:12" 형태로 저장
     start_time = Column(String(16), nullable=False)
 

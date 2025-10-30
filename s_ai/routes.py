@@ -18,6 +18,8 @@ from models.analysis import Job, Clip
 from analyze import THUMB_DIR
 from analyze import CLIPS_DIR
 from flask import current_app
+from database import db
+
 
 analyze_bp = Blueprint("analyze", __name__)
 
@@ -154,7 +156,8 @@ def get_job(job_id: str):
                 "start_time": c.start_time,  # "00:00:12"
                 "bbox": _bbox_from(c),  # [x1, y1, x2, y2] 또는 null
                 "clip_url": clip_url,  # "/event_clips/xxx.mp4"
-                "thumbnail": thumb_url,  # "/event_thumbs/xxx.jpg" 또는 null
+                "thumb_url": thumb_url,  # "/event_thumbs/xxx.jpg" 또는 null
+                "checked": bool(c.checked),
             }
         )
 
@@ -253,6 +256,8 @@ def get_clips_by_job(job_id):
     for c in clips:
         d = c.to_dict()
 
+        d["checked"] = bool(getattr(c, "checked", 0))
+
         # 1) 동영상 URL (기존 코드 유지)
         if d.get("clip_name"):
             d["clip_url"] = url_for(
@@ -276,3 +281,16 @@ def get_clips_by_job(job_id):
         result["clips"].append(d)
 
     return jsonify(result), 200
+
+
+@analyze_bp.route("/clips/<int:clip_id>/check", methods=["PATCH"])
+def mark_clip_checked(clip_id):
+    clip = Clip.query.get(clip_id)
+    if not clip:
+        return jsonify({"error": "Clip not found"}), 404
+    clip.checked = True
+
+    db.session.commit()
+    return jsonify(
+        {"message": "checked set to true", "clip_id": clip_id, "checked": True}
+    )

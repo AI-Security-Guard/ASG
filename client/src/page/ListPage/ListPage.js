@@ -51,6 +51,7 @@ function ListPage() {
             }));
 
             setEntries(mapped);
+            console.log("하이 " + JSON.stringify(entries));
         })().catch((e) => console.error(e));
     }, [API_BASE, jobId1]);
 

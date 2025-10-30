@@ -70,6 +70,53 @@ def _db():
 _DB_CONN = _db()
 
 
+def _encode_h264_faststart(in_path: str):
+    """
+    어떤 컨테이너/코덱으로 나오든 간에,
+    H.264 + yuv420p + main@L4.0 로 트랜스코딩하고 faststart까지 적용.
+    결과는 원본 경로를 덮어쓴다.
+    """
+    try:
+        if not in_path or not os.path.exists(in_path):
+            return
+        if not shutil.which("ffmpeg"):
+            return  # ffmpeg 없으면 조용히 패스
+
+        # 출력 임시 mp4 경로
+        base, _ = os.path.splitext(in_path)
+        out_tmp = base + "_avc.mp4"
+
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            in_path,
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-profile:v",
+            "main",
+            "-level",
+            "4.0",
+            "-movflags",
+            "+faststart",
+            "-an",  # 오디오 필요하면 이 줄 제거
+            out_tmp,
+        ]
+        subprocess.run(
+            cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+
+        # 성공하면 원본 바꾸기
+        os.replace(
+            out_tmp, in_path if in_path.lower().endswith(".mp4") else (base + ".mp4")
+        )
+        # 확장자가 .avi였다면 .mp4로 바뀌었을 수 있으니 주의
+    except Exception:
+        pass
+
+
 def _faststart_remux(in_path: str):
     """mp4 컨테이너 메타데이터(moov)를 앞쪽으로 옮겨 스트리밍/브라우저 호환성 확보"""
     try:
@@ -478,6 +525,7 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
                 active_clip.release()
                 try:
                     _faststart_remux(current_clip_path)
+                    _encode_h264_faststart(current_clip_path)
                 except Exception:
                     pass
             active_clip = None
@@ -740,6 +788,7 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
         # writer/캡쳐 정리
         annot_writer.release()
         _faststart_remux(annotated_path)
+        _encode_h264_faststart(annotated_path)
         cap.release()
 
         # 최종 결과 (progress=100) - DB 저장 + 동시에 return 할 객체

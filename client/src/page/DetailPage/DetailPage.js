@@ -67,7 +67,7 @@ function DetailPage() {
                 <D.Container>
                     <D.Detail>
                         <D.TempVideo controls>
-                            <source src="\10-1_Cam03_Assault03_Place07_Night_Summer_clip1_avc.mp4" type="video/mp4" />
+                            <source src={videoPath} type="video/mp4" />
                         </D.TempVideo>
                         <D.DetailContent>
                             <D.Date>발생시기: {occurredAt}</D.Date>

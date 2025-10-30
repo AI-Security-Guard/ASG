@@ -66,14 +66,9 @@ function DetailPage() {
                 <Header />
                 <D.Container>
                     <D.Detail>
-                        <D.TempVideo
-                            key={videoPath}
-                            controls
-                            preload="metadata"
-                            poster={posterPath}
-                            src={videoPath || undefined}
-                            crossOrigin="anonymous"
-                        />
+                        <D.TempVideo controls>
+                            <source src="\10-1_Cam03_Assault03_Place07_Night_Summer_clip1_avc.mp4" type="video/mp4" />
+                        </D.TempVideo>
                         <D.DetailContent>
                             <D.Date>발생시기: {occurredAt}</D.Date>
                             <D.Type>수상행동 유형: {type}</D.Type>

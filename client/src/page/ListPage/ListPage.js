@@ -31,7 +31,7 @@ function ListPage() {
         if (!jobId) return;
 
         (async () => {
-            const res = await fetch(`${API_BASE}/jobs/868447d3-0e23-4307-9e90-e27634199275/clips`);
+            const res = await fetch(`${API_BASE}/jobs/${jobId}/clips`);
             if (!res.ok) {
                 console.error("Failed to fetch clips", res.status);
                 return;

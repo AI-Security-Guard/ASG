@@ -19,7 +19,7 @@ function App() {
                     <Routes>
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/" element={<MainPage />} />
-                        <Route path="/List" element={<ListPage />} />
+                        <Route path="/List/:jobId" element={<ListPage />} />
                         <Route path="/Detail/:clipId" element={<DetailPage />} />
                         <Route path="/termspage" element={<TermsPage />} />
                         <Route path="/register" element={<RegisterPage />} />

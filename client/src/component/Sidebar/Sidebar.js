@@ -4,7 +4,7 @@ import { SidebarContainer, SidebarButton, SidebarFooter } from "./Sidebar.style.
 import CameraAltIcon from "@mui/icons-material/CameraAlt";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 
-function Sidebar() {
+function Sidebar({ jobId }) {
     const navigate = useNavigate();
 
     return (
@@ -16,7 +16,7 @@ function Sidebar() {
                         <span>CCTV 영상</span>
                     </div>
                 </SidebarButton>
-                <SidebarButton onClick={() => navigate("/List")}>
+                <SidebarButton onClick={() => navigate(`/List/${jobId}`)}>
                     <div className="content">
                         <AssignmentIcon fontSize="small" />
                         <span>기록</span>

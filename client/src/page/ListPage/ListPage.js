@@ -22,10 +22,8 @@ function ListPage() {
     const navigate = useNavigate();
     const [entries, setEntries] = useState([]);
     const jobId = localStorage.getItem("jobId");
-    console.log("efef" + jobId);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 8;
-    const jobId1 = "868447d3-0e23-4307-9e90-e27634199275";
     const API_BASE = "http://127.0.0.1:5001";
     useEffect(() => {
         if (!jobId) return;
@@ -53,7 +51,7 @@ function ListPage() {
             setEntries(mapped);
             console.log("하이 " + JSON.stringify(entries));
         })().catch((e) => console.error(e));
-    }, [API_BASE, jobId1]);
+    }, [API_BASE]);
 
     const handlePageChange = (event, page) => {
         setCurrentPage(page);

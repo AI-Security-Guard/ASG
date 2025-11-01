@@ -206,7 +206,7 @@ function RenderPage() {
             }
 
             setJobId(newJobId);
-            localStorage.setItem("jobId", newJobId);
+            // localStorage.setItem("jobId", newJobId);
             console.log(jobId);
             // 폴링 시작
             intervalRef.current = setInterval(async () => {
@@ -241,7 +241,7 @@ function RenderPage() {
         <>
             <S.MainLayout>
                 <Header />
-                <Sidebar />
+                <Sidebar jobId={jobId} />
                 <S.ContentArea>
                     {!videoSrc && <S.PlusIcon src="/image/addToVideo.png" alt="영상 추가" onClick={handleIconClick} />}
                     {videoSrc && (
@@ -345,7 +345,7 @@ function RenderPage() {
                                   onClick: () => {
                                       setModalOpen(false);
                                       setModalState("idle");
-                                      navigate("/List");
+                                      navigate(`/List/${jobId}`);
                                   },
                               },
                               {

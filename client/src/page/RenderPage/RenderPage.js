@@ -222,6 +222,16 @@ function RenderPage() {
                     if (pct >= 100) {
                         stopPolling();
                         setModalState("done");
+
+                        // ✅ annotated_video가 있다면 videoSrc로 설정
+                        const annotatedVideo = jobRes.data?.annotated_video;
+                        if (annotatedVideo) {
+                            const videoPath = `http://127.0.0.1:5001/${annotatedVideo.replace(/^\/+/, "")}`;
+                            console.log("🎥 분석 완료 영상:", videoPath);
+                            setVideoSrc(videoPath);
+                        } else {
+                            console.warn("⚠️ annotated_video가 없습니다.");
+                        }
                     }
                 } catch (pollErr) {
                     console.error("❌ 진행률 조회 실패:", pollErr?.response?.data || pollErr?.message);

@@ -20,9 +20,10 @@ def create_app():
         },
         supports_credentials=False,
         allow_headers=["Content-Type"],
-        methods=["GET", "POST", "OPTIONS"],
+        methods=["GET", "POST", "PATCH", "OPTIONS"],  # ← PATCH 추가
         max_age=600,
     )
+
     db.init_app(app)
 
     # 모델 import 후 테이블 생성
@@ -40,6 +41,9 @@ def create_app():
 
 
 app = create_app()
+
+print("DB URL =", app.config["SQLALCHEMY_DATABASE_URI"])
+print("CWD     =", os.getcwd())
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=True)

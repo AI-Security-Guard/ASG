@@ -22,10 +22,8 @@ function ListPage() {
     const navigate = useNavigate();
     const [entries, setEntries] = useState([]);
     const jobId = localStorage.getItem("jobId");
-    console.log("efef" + jobId);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 8;
-    const jobId1 = "868447d3-0e23-4307-9e90-e27634199275";
     const API_BASE = "http://127.0.0.1:5001";
     useEffect(() => {
         if (!jobId) return;
@@ -43,7 +41,7 @@ function ListPage() {
                 id: c.clip_id ?? i,
                 date: c.start_time ?? "",
                 message: c.class_name === "assault" ? "폭행" : c.class_name ?? "",
-                checked: false,
+                checked: Boolean(c.checked),
                 clipPath: (c.clip_path || "").replace(/\\/g, "/"),
                 thumbPath: c.thumb_url || "",
                 start_bbox: c.start_bbox || c.bbox || null,
@@ -51,8 +49,9 @@ function ListPage() {
             }));
 
             setEntries(mapped);
+            console.log("하이 " + JSON.stringify(entries));
         })().catch((e) => console.error(e));
-    }, [API_BASE, jobId1]);
+    }, [API_BASE]);
 
     const handlePageChange = (event, page) => {
         setCurrentPage(page);
@@ -64,8 +63,24 @@ function ListPage() {
     const currentEntries = sortedEntries.slice(indexOfFirstEntry, indexOfLastEntry);
     const unconfirmedCount = entries.filter((entry) => !entry.checked).length;
 
-    const handleClick = (entry) => {
-        navigate(`/Detail/${entry.id}`, { state: entry });
+    const handleClick = async (entry) => {
+        try {
+            // 1) 서버에 체크 반영 (확정형)
+            await fetch(`${API_BASE}/clips/${entry.id}/check`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+            });
+
+            // 2) 프론트 상태 동기화
+            setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, checked: true } : e)));
+
+            // 3) 상세 이동(상태 최신 반영해서 넘기기)
+            navigate(`/Detail/${entry.id}`, { state: { ...entry, checked: true } });
+        } catch (e) {
+            console.error("체크 업데이트 실패:", e);
+            // 실패해도 상세로는 이동할 수 있게 하려면 아래 유지
+            navigate(`/Detail/${entry.id}`, { state: entry });
+        }
     };
 
     return (

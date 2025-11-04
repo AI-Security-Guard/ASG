@@ -20,6 +20,7 @@ from analyze import THUMB_DIR
 from analyze import CLIPS_DIR
 from flask import current_app
 from database import db
+from analyze import ANNOTATED_DIR
 
 
 analyze_bp = Blueprint("analyze", __name__)
@@ -168,6 +169,16 @@ def get_job(job_id: str):
     resp = dict(job)
     resp.pop("results", None)  # 혹시 jobs.results가 있어도 숨김
     resp["result"] = result_list
+
+    annotated_fs = job.get("annotated_video")
+    if annotated_fs:
+        from os.path import basename
+
+        resp["annotated_video_url"] = url_for(
+            "analyze.serve_analyzed_video",
+            fname=basename(annotated_fs),
+            _external=False,
+        )
 
     return jsonify(resp), 200
 
@@ -319,3 +330,17 @@ def get_latest_job_for_user():
         return jsonify({"detail": "no jobs for this user"}), 404
 
     return jsonify({"job_id": row[0]}), 200
+
+
+@analyze_bp.route("/analyzed_videos/<path:fname>", methods=["GET"])
+def serve_analyzed_video(fname: str):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    analyzed_dir = (
+        ANNOTATED_DIR
+        if os.path.isabs(ANNOTATED_DIR)
+        else os.path.join(base_dir, ANNOTATED_DIR)
+    )
+
+    safe = os.path.normpath(fname).replace("\\", "/")
+    full_path = os.path.join(analyzed_dir, safe)
+    return _send_mp4_partial(full_path)  # 클립이랑 똑같이 Range 지원

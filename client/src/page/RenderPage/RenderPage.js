@@ -206,7 +206,7 @@ function RenderPage() {
             }
 
             setJobId(newJobId);
-            localStorage.setItem("jobId", newJobId);
+            // localStorage.setItem("jobId", newJobId);
             console.log(jobId);
             // 폴링 시작
             intervalRef.current = setInterval(async () => {
@@ -222,6 +222,16 @@ function RenderPage() {
                     if (pct >= 100) {
                         stopPolling();
                         setModalState("done");
+
+                        // ✅ annotated_video가 있다면 videoSrc로 설정
+                        const annotatedVideo = jobRes.data?.annotated_video;
+                        if (annotatedVideo) {
+                            const videoPath = `http://127.0.0.1:5001/${annotatedVideo.replace(/^\/+/, "")}`;
+                            console.log("🎥 분석 완료 영상:", videoPath);
+                            setVideoSrc(videoPath);
+                        } else {
+                            console.warn("⚠️ annotated_video가 없습니다.");
+                        }
                     }
                 } catch (pollErr) {
                     console.error("❌ 진행률 조회 실패:", pollErr?.response?.data || pollErr?.message);
@@ -241,7 +251,7 @@ function RenderPage() {
         <>
             <S.MainLayout>
                 <Header />
-                <Sidebar />
+                <Sidebar jobId={jobId} />
                 <S.ContentArea>
                     {!videoSrc && <S.PlusIcon src="/image/addToVideo.png" alt="영상 추가" onClick={handleIconClick} />}
                     {videoSrc && (
@@ -345,7 +355,7 @@ function RenderPage() {
                                   onClick: () => {
                                       setModalOpen(false);
                                       setModalState("idle");
-                                      navigate("/List");
+                                      navigate(`/List/${jobId}`);
                                   },
                               },
                               {

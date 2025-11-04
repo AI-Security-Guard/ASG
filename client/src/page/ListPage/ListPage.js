@@ -45,13 +45,6 @@ function ListPage() {
         setEntries(mapped);
     };
 
-    // useEffect(() => {
-    //     if (jobId) {
-    //         localStorage.setItem("jobId", jobId);
-    //         console.log("✅ jobId 저장됨:", jobId);
-    //     }
-    // }, [jobId]);
-
     useEffect(() => {
         (async () => {
             // 1) URL에 제대로 jobId가 온 경우

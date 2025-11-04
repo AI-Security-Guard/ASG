@@ -1,8 +1,9 @@
-import React, { useState } from "react";
-import Header from "../../component/Header/Header";
-import * as S from "./TermsPage.style";
-import { useNavigate } from "react-router-dom";
-import ShortButton from "../../component/ShortButton/ShortButton.js";
+import React, { useState } from 'react';
+import Header from '../../component/Header/Header';
+import * as S from './TermsPage.style';
+import { useNavigate } from 'react-router-dom';
+import ShortButton from '../../component/ShortButton/ShortButton.js';
+import axios from 'axios';
 
 function TermsPage() {
     const [allAgree, setAllAgree] = useState(false);
@@ -18,17 +19,48 @@ function TermsPage() {
     };
 
     const handleIndividualAgree = (type, value) => {
-        if (type === "terms") setTermsAgree(value);
-        if (type === "privacy") setPrivacyAgree(value);
-        if (value && ((type === "terms" && privacyAgree) || (type === "privacy" && termsAgree))) {
+        if (type === 'terms') setTermsAgree(value);
+        if (type === 'privacy') setPrivacyAgree(value);
+        if (value && ((type === 'terms' && privacyAgree) || (type === 'privacy' && termsAgree))) {
             setAllAgree(true);
         } else {
             setAllAgree(false);
         }
     };
 
-    const handleSubmit = () => {
-        navigate("/render");
+    const handleSubmit = async () => {
+        // 필수 약관 체크 안 하면 경고
+        if (!termsAgree || !privacyAgree) {
+            alert('필수 약관에 모두 동의해야 합니다.');
+            return;
+        }
+
+        // RegisterPage에서 저장한 정보 가져오기
+        const username = localStorage.getItem('username');
+        const password = localStorage.getItem('password');
+        const passwordCheck = localStorage.getItem('passwordCheck');
+
+        if (!username || !password || !passwordCheck) {
+            alert('회원가입 정보가 없습니다. 다시 입력해주세요.');
+            navigate('/register');
+            return;
+        }
+
+        try {
+            // 실제 회원가입 API 호출
+            const res = await axios.post('http://127.0.0.1:5000/register', {
+                username,
+                password,
+                passwordCheck,
+            });
+
+            alert('회원가입이 완료되었습니다!');
+            localStorage.clear(); // 저장된 임시 정보 삭제
+            navigate('/login'); // RenderPage로 이동
+        } catch (err) {
+            console.error('회원가입 실패:', err);
+            alert('회원가입 중 오류가 발생했습니다.');
+        }
     };
 
     return (
@@ -54,7 +86,7 @@ function TermsPage() {
                             control={
                                 <S.CheckLine
                                     checked={termsAgree}
-                                    onChange={(e) => handleIndividualAgree("terms", e.target.checked)}
+                                    onChange={(e) => handleIndividualAgree('terms', e.target.checked)}
                                 />
                             }
                             label="이용약관 동의 (필수)"
@@ -554,7 +586,7 @@ vi.기타 정상적인 서비스 운영에 방해가 될 경우
                             control={
                                 <S.CheckLine
                                     checked={privacyAgree}
-                                    onChange={(e) => handleIndividualAgree("privacy", e.target.checked)}
+                                    onChange={(e) => handleIndividualAgree('privacy', e.target.checked)}
                                 />
                             }
                             label="개인정보 수집 및 이용 동의 (필수)"

@@ -3,11 +3,16 @@ import Header from "../../component/Header/Header";
 import * as S from "./TermsPage.style";
 import { useNavigate } from "react-router-dom";
 import ShortButton from "../../component/ShortButton/ShortButton.js";
+import CustomModal from "../../component/CustomModal/CustomModal.js";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import axios from "axios";
 
 function TermsPage() {
     const [allAgree, setAllAgree] = useState(false);
     const [termsAgree, setTermsAgree] = useState(false);
     const [privacyAgree, setPrivacyAgree] = useState(false);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalMessage, setModalMessage] = useState("");
     const navigate = useNavigate();
 
     const handleAllAgree = () => {
@@ -27,8 +32,40 @@ function TermsPage() {
         }
     };
 
-    const handleSubmit = () => {
-        navigate("/render");
+    const handleSubmit = async () => {
+        // 필수 약관 체크 안 하면 경고
+        if (!termsAgree || !privacyAgree) {
+            alert("필수 약관에 모두 동의해야 합니다.");
+            return;
+        }
+
+        // RegisterPage에서 저장한 정보 가져오기
+        const username = localStorage.getItem("username");
+        const password = localStorage.getItem("password");
+        const passwordCheck = localStorage.getItem("passwordCheck");
+
+        if (!username || !password || !passwordCheck) {
+            alert("회원가입 정보가 없습니다. 다시 입력해주세요.");
+            navigate("/register");
+            return;
+        }
+
+        try {
+            // 실제 회원가입 API 호출
+            const res = await axios.post("http://127.0.0.1:5000/register", {
+                username,
+                password,
+                passwordCheck,
+            });
+
+            setModalMessage("회원가입이 완료되었습니다!");
+            setModalOpen(true);
+
+            // navigate("/login");
+        } catch (err) {
+            console.error("회원가입 실패:", err);
+            alert("회원가입 중 오류가 발생했습니다.");
+        }
     };
 
     return (
@@ -613,6 +650,22 @@ AI방범대에서는 기본적인 회원 서비스 제공을 위한 필수정보
                     </S.ButtonGroup>
                 </S.Box>
             </S.Container>
+            <CustomModal
+                open={modalOpen}
+                onClose={() => setModalOpen(false)}
+                title="회원가입"
+                message={modalMessage}
+                icon={<ErrorOutlineIcon style={{ fontSize: 60, color: "#6E6E6E" }} />}
+                buttons={[
+                    {
+                        label: "확인",
+                        onClick: () => {
+                            setModalOpen(false);
+                            navigate("/login"); // ✅ 여기서 페이지 이동
+                        },
+                    },
+                ]}
+            />
         </>
     );
 }

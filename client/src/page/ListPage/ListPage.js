@@ -16,42 +16,61 @@ import {
 } from "./ListPage.style.js";
 import Header from "../../component/Header/Header.js";
 import Sidebar from "../../component/Sidebar/Sidebar.js";
-import { useNavigate } from "react-router-dom";
-
+import { useNavigate, useParams } from "react-router-dom";
 function ListPage() {
+    const { jobId } = useParams();
     const navigate = useNavigate();
     const [entries, setEntries] = useState([]);
-    const jobId = localStorage.getItem("jobId");
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 8;
     const API_BASE = "http://127.0.0.1:5001";
-    useEffect(() => {
-        if (!jobId) return;
 
+    const fetchClipsByJobId = async (realJobId) => {
+        const res = await fetch(`${API_BASE}/jobs/${realJobId}/clips`);
+        if (!res.ok) {
+            console.error("Failed to fetch clips", res.status);
+            return;
+        }
+        const data = await res.json();
+        const mapped = (data.clips || []).map((c, i) => ({
+            id: c.clip_id ?? i,
+            date: c.start_time ?? "",
+            message: c.class_name === "assault" ? "폭행" : c.class_name ?? "",
+            checked: Boolean(c.checked),
+            clipPath: (c.clip_path || "").replace(/\\/g, "/"),
+            thumbPath: c.thumb_url || "",
+            start_bbox: c.start_bbox || c.bbox || null,
+            clipUrl: c.clip_url || "",
+        }));
+        setEntries(mapped);
+    };
+
+    useEffect(() => {
         (async () => {
-            const res = await fetch(`${API_BASE}/jobs/${jobId}/clips`);
-            if (!res.ok) {
-                console.error("Failed to fetch clips", res.status);
+            // 1) URL에 제대로 jobId가 온 경우
+            if (jobId && jobId !== "null") {
+                await fetchClipsByJobId(jobId);
                 return;
             }
 
-            const data = await res.json();
-            console.log(data);
-            const mapped = (data.clips || []).map((c, i) => ({
-                id: c.clip_id ?? i,
-                date: c.start_time ?? "",
-                message: c.class_name === "assault" ? "폭행" : c.class_name ?? "",
-                checked: Boolean(c.checked),
-                clipPath: (c.clip_path || "").replace(/\\/g, "/"),
-                thumbPath: c.thumb_url || "",
-                start_bbox: c.start_bbox || c.bbox || null,
-                clipUrl: c.clip_url || "",
-            }));
+            // 2) URL이 /List/null 이거나 비어있을 때 → 서버한테 "이 사용자 최신 job" 물어보기
+            const userStr = localStorage.getItem("user");
+            if (!userStr) return;
+            const user = JSON.parse(userStr);
+            const username = user?.username;
+            if (!username) return;
 
-            setEntries(mapped);
-            console.log("하이 " + JSON.stringify(entries));
+            const latestRes = await fetch(`${API_BASE}/jobs/latest?username=${encodeURIComponent(username)}`);
+            if (!latestRes.ok) {
+                console.error("no latest job for user");
+                return;
+            }
+            const latestData = await latestRes.json();
+            if (!latestData.job_id) return;
+
+            await fetchClipsByJobId(latestData.job_id);
         })().catch((e) => console.error(e));
-    }, [API_BASE]);
+    }, [jobId]);
 
     const handlePageChange = (event, page) => {
         setCurrentPage(page);

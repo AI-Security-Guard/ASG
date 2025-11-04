@@ -191,7 +191,7 @@ def db_upsert_job(job: Dict[str, Any]):
         add("annotated_video", job.get("annotated_video"), skip_none=True)
     if "message" in cols:
         add("message", job.get("message"), skip_none=True)
-
+    add("username", job.get("username"), skip_none=True)
     placeholders = ", ".join(["?"] * len(insert_cols))
     columns_csv = ", ".join(insert_cols)
 

@@ -1,5 +1,6 @@
 import os
 import uuid
+import sqlite3
 import threading
 from flask import (
     send_file,
@@ -30,6 +31,7 @@ def analyze_video():
     try:
         data = request.get_json(silent=True) or {}
         video_path = data.get("video_path")
+        username = data.get("username")
 
         from analyze import (
             model,
@@ -78,6 +80,7 @@ def analyze_video():
             "progress": 0.0,
             "results": None,
             "video_path": video_path,
+            "username": username,
         }
         db_upsert_job(processing_jobs[job_id])
 
@@ -294,3 +297,25 @@ def mark_clip_checked(clip_id):
     return jsonify(
         {"message": "checked set to true", "clip_id": clip_id, "checked": True}
     )
+
+
+@analyze_bp.route("/jobs/latest", methods=["GET"])
+def get_latest_job_for_user():
+    username = request.args.get("username")
+    if not username:
+        return jsonify({"detail": "username is required"}), 400
+
+    # jobs.db 에서 이 사용자걸 최신순으로 하나만
+    conn = sqlite3.connect("jobs.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT job_id FROM jobs WHERE username = ? ORDER BY rowid DESC LIMIT 1",
+        (username,),
+    )
+    row = cur.fetchone()
+    conn.close()
+
+    if not row:
+        return jsonify({"detail": "no jobs for this user"}), 404
+
+    return jsonify({"job_id": row[0]}), 200

@@ -176,7 +176,8 @@ function RenderPage() {
             console.error("❌ 서버 저장 경로(videoPath)가 없습니다.");
             return;
         }
-
+        const user = JSON.parse(localStorage.getItem("user"));
+        const username = user?.username || null;
         setModalOpen(true);
         setModalType("none");
         setModalState("loading");
@@ -187,7 +188,7 @@ function RenderPage() {
             console.log("[POST] /analyze 요청 보냄");
             const res = await axios.post(
                 "http://127.0.0.1:5001/analyze",
-                { video_path: videoPath },
+                { video_path: videoPath, username: username },
                 {
                     timeout: 15000,
                     headers: { "Content-Type": "application/json" },

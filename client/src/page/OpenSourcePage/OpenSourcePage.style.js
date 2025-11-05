@@ -1,4 +1,4 @@
-import styled from 'styled-components';
+import styled from "styled-components";
 
 export const OpenSourceContainer = styled.div`
     display: flex;
@@ -65,7 +65,7 @@ export const SourceItem = styled.div`
     &:hover {
         transform: translateY(-4px);
         background: linear-gradient(145deg, #ffffff, #f0f6ff);
-        border-image: linear-gradient(90deg, #1976d2, #42a5f5) 1;
+        // border-image: linear-gradient(90deg, #1976d2, #42a5f5) 1;
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
     }
 

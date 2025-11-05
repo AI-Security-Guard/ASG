@@ -34,6 +34,8 @@ def upload_video():
 
     # DB에 경로 저장
     user.video = save_path
+    if not user.original_video:
+        user.original_video = save_path
     db.session.commit()
 
     return (

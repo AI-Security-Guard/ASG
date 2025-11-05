@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 import {
     HeaderContainer,
     Logo,
@@ -9,17 +9,17 @@ import {
     RegisterButton,
     WelcomeMessage,
     Logout,
-} from "./Header.style.js";
-import { useNavigate } from "react-router-dom";
+} from './Header.style.js';
+import { useNavigate } from 'react-router-dom';
 
-function Header() {
+function Header({ compact = false }) {
     const navigate = useNavigate();
     const [isLogin, setIsLogin] = useState(false);
-    const [id, setId] = useState("");
+    const [id, setId] = useState('');
 
     useEffect(() => {
-        const user = JSON.parse(localStorage.getItem("user"));
-        const token = localStorage.getItem("access_token");
+        const user = JSON.parse(localStorage.getItem('user'));
+        const token = localStorage.getItem('access_token');
 
         if (user && token) {
             setIsLogin(true);
@@ -28,16 +28,16 @@ function Header() {
     }, []);
 
     const handleLogout = () => {
-        localStorage.removeItem("user");
-        localStorage.removeItem("access_token");
+        localStorage.removeItem('user');
+        localStorage.removeItem('access_token');
         setIsLogin(false);
-        setId("");
-        navigate("/login", { replace: true });
+        setId('');
+        navigate('/login', { replace: true });
     };
 
     return (
         <HeaderContainer>
-            <Logo onClick={() => navigate("/")}>
+            <Logo onClick={() => navigate('/')}>
                 <LogoImg src="/image/logo.png" alt="로고 이미지" />
                 <LogoTxt>AI방범대</LogoTxt>
             </Logo>
@@ -49,8 +49,8 @@ function Header() {
                     </>
                 ) : (
                     <>
-                        <LoginButton onClick={() => navigate("/login")}>로그인</LoginButton>
-                        <RegisterButton onClick={() => navigate("/register")}>회원가입</RegisterButton>
+                        <LoginButton onClick={() => navigate('/login')}>로그인</LoginButton>
+                        <RegisterButton onClick={() => navigate('/register')}>회원가입</RegisterButton>
                     </>
                 )}
             </UserAuthBox>

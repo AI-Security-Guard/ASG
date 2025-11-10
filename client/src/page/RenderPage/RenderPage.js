@@ -75,7 +75,7 @@ function RenderPage() {
     const [progress, setProgress] = useState(0);
     const [jobId, setJobId] = useState(null);
     const intervalRef = useRef(null);
-
+    const videoRef = useRef(null);
     const stopPolling = () => {
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
@@ -176,7 +176,8 @@ function RenderPage() {
             console.error("❌ 서버 저장 경로(videoPath)가 없습니다.");
             return;
         }
-
+        const user = JSON.parse(localStorage.getItem("user"));
+        const username = user?.username || null;
         setModalOpen(true);
         setModalType("none");
         setModalState("loading");
@@ -187,7 +188,7 @@ function RenderPage() {
             console.log("[POST] /analyze 요청 보냄");
             const res = await axios.post(
                 "http://127.0.0.1:5001/analyze",
-                { video_path: videoPath },
+                { video_path: videoPath, username: username },
                 {
                     timeout: 15000,
                     headers: { "Content-Type": "application/json" },
@@ -220,17 +221,18 @@ function RenderPage() {
                     console.log("[POLL] progress:", raw, "=>", pct, "%");
                     console.log(raw);
                     if (pct >= 100) {
+                        console.log("[DONE] 최종 응답:", jobRes.data);
                         stopPolling();
                         setModalState("done");
 
-                        // ✅ annotated_video가 있다면 videoSrc로 설정
-                        const annotatedVideo = jobRes.data?.annotated_video;
-                        if (annotatedVideo) {
-                            const videoPath = `http://127.0.0.1:5001/${annotatedVideo.replace(/^\/+/, "")}`;
-                            console.log("🎥 분석 완료 영상:", videoPath);
-                            setVideoSrc(videoPath);
-                        } else {
-                            console.warn("⚠️ annotated_video가 없습니다.");
+                        const annotatedUrl = jobRes.data?.annotated_video_url;
+                        if (annotatedUrl) {
+                            const fullUrl = `http://127.0.0.1:5001${annotatedUrl}`;
+                            console.log("🎥 분석 완료 영상 URL:", fullUrl);
+                            setVideoSrc(fullUrl);
+                            setTimeout(() => {
+                                if (videoRef.current) videoRef.current.load();
+                            }, 0);
                         }
                     }
                 } catch (pollErr) {
@@ -256,9 +258,8 @@ function RenderPage() {
                     {!videoSrc && <S.PlusIcon src="/image/addToVideo.png" alt="영상 추가" onClick={handleIconClick} />}
                     {videoSrc && (
                         <>
-                            <S.VideoPlayer controls>
+                            <S.VideoPlayer controls ref={videoRef} key={videoSrc}>
                                 <source src={videoSrc} type="video/mp4" />
-                                브라우저가 video 태그를 지원하지 않습니다.
                             </S.VideoPlayer>
                             <S.ButtonWrapper>
                                 <ShortButton txt="분석하기" onClick={handleGoAnalysis} />

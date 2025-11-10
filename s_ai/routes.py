@@ -1,5 +1,6 @@
 import os
 import uuid
+import sqlite3
 import threading
 from flask import (
     send_file,
@@ -19,6 +20,7 @@ from analyze import THUMB_DIR
 from analyze import CLIPS_DIR
 from flask import current_app
 from database import db
+from analyze import ANNOTATED_DIR
 
 
 analyze_bp = Blueprint("analyze", __name__)
@@ -30,6 +32,7 @@ def analyze_video():
     try:
         data = request.get_json(silent=True) or {}
         video_path = data.get("video_path")
+        username = data.get("username")
 
         from analyze import (
             model,
@@ -78,6 +81,7 @@ def analyze_video():
             "progress": 0.0,
             "results": None,
             "video_path": video_path,
+            "username": username,
         }
         db_upsert_job(processing_jobs[job_id])
 
@@ -165,6 +169,16 @@ def get_job(job_id: str):
     resp = dict(job)
     resp.pop("results", None)  # 혹시 jobs.results가 있어도 숨김
     resp["result"] = result_list
+
+    annotated_fs = job.get("annotated_video")
+    if annotated_fs:
+        from os.path import basename
+
+        resp["annotated_video_url"] = url_for(
+            "analyze.serve_analyzed_video",
+            fname=basename(annotated_fs),
+            _external=False,
+        )
 
     return jsonify(resp), 200
 
@@ -294,3 +308,39 @@ def mark_clip_checked(clip_id):
     return jsonify(
         {"message": "checked set to true", "clip_id": clip_id, "checked": True}
     )
+
+
+@analyze_bp.route("/jobs/latest", methods=["GET"])
+def get_latest_job_for_user():
+    username = request.args.get("username")
+    if not username:
+        return jsonify({"detail": "username is required"}), 400
+
+    # jobs.db 에서 이 사용자걸 최신순으로 하나만
+    conn = sqlite3.connect("jobs.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT job_id FROM jobs WHERE username = ? ORDER BY rowid DESC LIMIT 1",
+        (username,),
+    )
+    row = cur.fetchone()
+    conn.close()
+
+    if not row:
+        return jsonify({"detail": "no jobs for this user"}), 404
+
+    return jsonify({"job_id": row[0]}), 200
+
+
+@analyze_bp.route("/analyzed_videos/<path:fname>", methods=["GET"])
+def serve_analyzed_video(fname: str):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    analyzed_dir = (
+        ANNOTATED_DIR
+        if os.path.isabs(ANNOTATED_DIR)
+        else os.path.join(base_dir, ANNOTATED_DIR)
+    )
+
+    safe = os.path.normpath(fname).replace("\\", "/")
+    full_path = os.path.join(analyzed_dir, safe)
+    return _send_mp4_partial(full_path)  # 클립이랑 똑같이 Range 지원

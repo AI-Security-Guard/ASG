@@ -9,6 +9,7 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     video = db.Column(db.String(200), nullable=True)
+    original_video = db.Column(db.String, nullable=True)
 
     def to_dict(self):
         return {

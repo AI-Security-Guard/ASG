@@ -1,5 +1,7 @@
 #include <torch/extension.h>
+#ifdef USE_CUDA
 #include <c10/cuda/CUDAGuard.h>
+#endif
 #include <vector>
 #include <iostream>
 
@@ -71,7 +73,9 @@ torch::Tensor correlation_sample_forward(
 
     // set device of input1 as default CUDA device
     // https://pytorch.org/cppdocs/api/structc10_1_1cuda_1_1_optional_c_u_d_a_guard.html
+    #ifdef USE_CUDA
     const at::cuda::OptionalCUDAGuard guard_input1(device_of(input1));
+    #endif
     CHECK_SAME_DEVICE(input1, input2);
 
     return correlation_cuda_forward(input1, input2, kH, kW, patchH, patchW,
@@ -102,7 +106,9 @@ std::vector<torch::Tensor> correlation_sample_backward(
     CHECK_INPUT(input2);
 
     // set device of input1 as default CUDA device
+    #ifdef USE_CUDA
     const at::cuda::OptionalCUDAGuard guard_input1(device_of(input1));
+    #endif
     CHECK_SAME_DEVICE(input1, input2);
     CHECK_SAME_DEVICE(input1, grad_output);
 

@@ -4,31 +4,24 @@ from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CppExtensio
 from os.path import join
 
 CPU_ONLY = False
-project_root = 'Correlation_Module'
+project_root = "Correlation_Module"
 
-source_files = ['correlation.cpp', 'correlation_sampler.cpp']
-cxx_args = ['/std:c++17']  # MSVC용으로 변경 (Windows에서는 -std 대신 /std)
+source_files = ["correlation.cpp", "correlation_sampler.cpp"]
+
+cxx_args = ["-std=c++17", "-fopenmp"]
+
 
 def generate_nvcc_args(gpu_archs):
     nvcc_args = []
     for arch in gpu_archs:
-        nvcc_args.extend(['-gencode', f'arch=compute_{arch},code=sm_{arch}'])
+        nvcc_args.extend(["-gencode", f"arch=compute_{arch},code=sm_{arch}"])
     return nvcc_args
 
-gpu_arch = os.environ.get('GPU_ARCH', '').split()
+
+gpu_arch = os.environ.get("GPU_ARCH", "").split()
 nvcc_args = generate_nvcc_args(gpu_arch)
 
-# ✅ 핵심: nvcc 옵션 강제 설정
-nvcc_args.extend([
-    '-std=c++17',
-    '--use-local-env',
-    '--allow-unsupported-compiler',  # 🚀 Visual Studio 최신 버전 강제 통과
-    '-Xcompiler', '/MD',
-    '-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH'
-])
-
-with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
+long_description = ""
 
 
 def launch_setup():
@@ -37,45 +30,42 @@ def launch_setup():
         macro = []
     else:
         Extension = CUDAExtension
-        source_files.append('correlation_cuda_kernel.cu')
+        source_files.append("correlation_cuda_kernel.cu")
         macro = [("USE_CUDA", None)]
 
     sources = [join(project_root, file) for file in source_files]
 
     setup(
-        name='spatial_correlation_sampler',
+        name="spatial_correlation_sampler",
         version="0.5.0",
         author="Clément Pinard",
         author_email="mail@clementpinard.fr",
-        description="Correlation module for PyTorch",
+        description="Correlation module for pytorch",
         long_description=long_description,
         long_description_content_type="text/markdown",
         url="https://github.com/ClementPinard/Pytorch-Correlation-extension",
-        install_requires=['torch>=1.1', 'numpy'],
+        install_requires=["torch>=1.1", "numpy"],
         ext_modules=[
             Extension(
-                'spatial_correlation_sampler_backend',
+                "spatial_correlation_sampler_backend",
                 sources,
                 define_macros=macro,
-                extra_compile_args={
-                    'cxx': cxx_args,
-                    'nvcc': nvcc_args
-                },
-                extra_link_args=[]
+                extra_compile_args={"cxx": cxx_args, "nvcc": nvcc_args},
+                extra_link_args=([] if os.name == "nt" else ["-lgomp"]),
             )
         ],
-        package_dir={'': project_root},
-        packages=['spatial_correlation_sampler'],
-        cmdclass={'build_ext': BuildExtension},
+        package_dir={"": project_root},
+        packages=["spatial_correlation_sampler"],
+        cmdclass={"build_ext": BuildExtension},
         classifiers=[
             "Programming Language :: Python :: 3",
             "License :: OSI Approved :: MIT License",
-            "Operating System :: Microsoft :: Windows",
+            "Operating System :: POSIX :: Linux",
             "Intended Audience :: Science/Research",
-            "Topic :: Scientific/Engineering :: Artificial Intelligence"
-        ]
+            "Topic :: Scientific/Engineering :: Artificial Intelligence",
+        ],
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     launch_setup()

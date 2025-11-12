@@ -158,6 +158,16 @@ def db_upsert_job(job: Dict[str, Any]):
     cols = _get_jobs_columns()
     cur = _DB_CONN.cursor()
 
+    if "username" in cols and job.get("job_id") and not job.get("username"):
+        try:
+            r = cur.execute(
+                "SELECT username FROM jobs WHERE job_id = ?", (job["job_id"],)
+            ).fetchone()
+            if r and r[0]:
+                job["username"] = r[0]
+        except Exception:
+            pass
+
     insert_cols = ["job_id"]
     insert_vals = [job.get("job_id")]
     update_sets = []
@@ -751,14 +761,28 @@ def analyze_video_pure(job_id: str, video_path: str, on_progress=None):
                 if total_frames > 0:
                     progress = min(99.0, (written_frames / total_frames) * 100.0)
                 else:
-                    progress = 0.0
-                # 1% 이상 변할 때만 저장
-                if progress - last_saved_progress >= 1.0:
+                    # 🎯 Fallback: 프레임 수를 알 수 없을 때는 조금씩이라도 전진하도록
+                    # 너무 느리게 보이지 않게 최소 0.5%씩 증가 (상한 99%)
+                    progress = min(
+                        99.0,
+                        (last_saved_progress if last_saved_progress >= 0 else 0.0)
+                        + 0.5,
+                    )
+
+                # 🎯 저장 임계치 완화: 1.0% → 0.3%
+                if (progress - last_saved_progress) >= 0.3:
                     processing_jobs[job_id]["status"] = "running"
                     processing_jobs[job_id]["progress"] = float(progress)
-                    db_upsert_job(processing_jobs[job_id])
+                    try:
+                        db_upsert_job(processing_jobs[job_id])
+                    except Exception as _e:
+                        # 진행률 저장 실패가 분석을 막지 않도록
+                        pass
                     if on_progress:
-                        on_progress(progress)  # ← SQLAlchemy Job 테이블에도 업데이트
+                        try:
+                            on_progress(progress)
+                        except Exception:
+                            pass
                     last_saved_progress = progress
 
             # 다음 창으로 슬라이드

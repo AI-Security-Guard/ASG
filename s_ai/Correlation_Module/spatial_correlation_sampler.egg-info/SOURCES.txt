@@ -1,5 +1,4 @@
 LICENSE
-README.md
 setup.py
 setup_cpu.py
 Correlation_Module/correlation.cpp

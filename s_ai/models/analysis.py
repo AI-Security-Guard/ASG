@@ -9,6 +9,7 @@ class Job(db.Model):
     __tablename__ = "jobs"
 
     job_id = Column(String, primary_key=True)
+    username = Column(String, nullable=False)
     video_path = Column(Text, nullable=False)
     status = Column(
         String, nullable=False, default="queued"

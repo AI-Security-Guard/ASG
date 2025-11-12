@@ -90,32 +90,35 @@ function RenderPage() {
         const username = user?.username;
 
         const fetchSavedVideo = async () => {
-            const token = localStorage.getItem("access_token");
             try {
-                const response = await axios.get("http://127.0.0.1:5000/bringVideo", {
-                    params: { username },
-                    responseType: "blob",
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+                const user = JSON.parse(localStorage.getItem("user"));
+                const username = user?.username;
+                if (!username) return;
 
-                const contentType = response.headers["content-type"];
-                if (contentType && contentType.includes("application/json")) {
-                    const text = await response.data.text();
-                    const json = JSON.parse(text);
-                    if (json.hasVideo === false) {
-                        return;
-                    }
-                } else {
-                    const blob = new Blob([response.data], { type: "video/mp4" });
-                    const videoURL = URL.createObjectURL(blob);
-                    setVideoSrc(videoURL);
+                // 1) 사용자 최신 job_id 조회 (분석 서버 5001)
+                const latest = await axios.get("http://127.0.0.1:5001/jobs/latest", {
+                    params: { username },
+                });
+                const jobId = latest?.data?.job_id;
+                if (!jobId) return;
+
+                // 2) job 상세 조회 → annotated_video_url 확인
+                const jobRes = await axios.get(`http://127.0.0.1:5001/jobs/${jobId}`, {
+                    params: { t: Date.now() },
+                });
+                const annotatedUrl = jobRes.data?.annotated_video_url;
+                if (annotatedUrl) {
+                    // 분석 서버의 정적 라우트(serve_analyzed_video)는 상대경로를 주므로 prefix 붙여줌
+                    const fullUrl = `http://127.0.0.1:5001${annotatedUrl}`;
+                    setVideoSrc(fullUrl);
+                    setTimeout(() => {
+                        if (videoRef.current) videoRef.current.load();
+                    }, 0);
                 }
-                console.log(response);
             } catch (err) {
-                console.error(err);
+                console.error("새로고침 시 영상 불러오기 실패:", err?.response?.data || err?.message);
             }
         };
-
         fetchSavedVideo();
     }, []);
 
